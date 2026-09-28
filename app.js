@@ -148,33 +148,44 @@ function processCapture() {
     let W = thresh.cols;
     let H = thresh.rows;
     
-    let colW = W / 4;   // 4 colunas
-    let rowH = H / 15;  // 15 questões por coluna
+    // Os limites exatos de cada coluna no eixo X (em porcentagem da largura total)
+    // C0: 13% a 25%, C1: 30% a 42%, C2: 58% a 70%, C3: 75% a 87%
+    let colBounds = [
+        { start: 0.13, end: 0.25 },
+        { start: 0.30, end: 0.42 },
+        { start: 0.58, end: 0.70 },
+        { start: 0.75, end: 0.87 }
+    ];
+    
+    // Os limites exatos do bloco de questões no eixo Y (em porcentagem da altura total)
+    let yStartPercent = 0.08;
+    let yEndPercent = 0.92;
+    let totalGridH = (yEndPercent - yStartPercent) * H;
+    let rowH = totalGridH / 15;
     
     let options = ['A', 'B', 'C', 'D', 'E'];
     let acertos = 0;
     let gabarito = GABARITOS[currentExam];
-    
     let index = 0;
     
     for (let c = 0; c < 4; c++) {
+        let bounds = colBounds[c];
+        let colStartX = Math.floor(bounds.start * W);
+        let colW = Math.floor((bounds.end - bounds.start) * W);
+        let optW = Math.floor(colW / 5);
+        
         for (let r = 0; r < 15; r++) {
             
-            let y_start = Math.floor(r * rowH);
-            let y_end = Math.floor((r + 1) * rowH);
-            
-            // O início da coluna tem o número (ex: "01"). Vamos pular os primeiros 25% da coluna.
-            let bubblesStartX = Math.floor(c * colW + (colW * 0.25));
-            // O espaço restante é dividido para as 5 alternativas
-            let optW = Math.floor((colW * 0.70) / 5);
+            let y_start = Math.floor((yStartPercent * H) + (r * rowH));
+            let y_end = Math.floor((yStartPercent * H) + ((r + 1) * rowH));
             
             let maxPixels = 0;
             let chosenOptionIndex = -1;
             let optionCoords = [];
             
             for (let o = 0; o < 5; o++) {
-                let x_start = bubblesStartX + o * optW;
-                let x_end = bubblesStartX + (o + 1) * optW;
+                let x_start = colStartX + o * optW;
+                let x_end = colStartX + (o + 1) * optW;
                 optionCoords.push({x1: x_start, x2: x_end, y1: y_start, y2: y_end});
                 
                 // Recorta o quadradinho da alternativa
@@ -199,9 +210,9 @@ function processCapture() {
 
             // --- DESENHO DO DEBUG VISUAL ---
             for (let o = 0; o < 5; o++) {
-                let color = (o === chosenOptionIndex) ? [0, 255, 0, 255] : [255, 0, 0, 255]; // Verde se marcada, Vermelho se vazia
+                let color = (o === chosenOptionIndex) ? [0, 255, 0, 255] : [255, 0, 0, 255]; 
                 let coords = optionCoords[o];
-                cv.rectangle(src, new cv.Point(coords.x1, coords.y1), new cv.Point(coords.x2, coords.y2), color, 1);
+                cv.rectangle(src, new cv.Point(coords.x1, coords.y1), new cv.Point(coords.x2, coords.y2), color, 2);
             }
             
             index++;
