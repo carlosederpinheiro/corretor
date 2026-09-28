@@ -19,7 +19,6 @@ let ctx = canvasOutput.getContext('2d');
 let statusMsg = document.getElementById('status-msg');
 let loadingOverlay = document.getElementById('loading');
 
-// Configuração dos botões
 document.getElementById('btn-sis2').addEventListener('click', (e) => {
     currentExam = 'SIS 2';
     e.target.classList.add('active');
@@ -54,11 +53,9 @@ async function startCamera() {
     }
 }
 
-// Ordenar pontos do retângulo (Top-Left, Top-Right, Bottom-Right, Bottom-Left)
 function orderPoints(pts) {
     let rect = new cv.Mat(4, 1, cv.CV_32FC2);
     let ptsData = pts.data32S;
-    
     let pointsArray = [];
     for(let i=0; i<4; i++){
         pointsArray.push({x: ptsData[i*2], y: ptsData[i*2 + 1]});
@@ -85,7 +82,7 @@ document.getElementById('btn-capture').addEventListener('click', () => {
     
     let src = cv.imread(canvasOutput);
     
-    // REDIMENSIONAMENTO: fundamental para celulares com câmera 4K
+    // REDIMENSIONAMENTO PARA ENCONTRAR A FOLHA
     let maxH = 800;
     let ratio = src.rows / maxH;
     let newW = Math.round(src.cols / ratio);
@@ -96,15 +93,12 @@ document.getElementById('btn-capture').addEventListener('click', () => {
     let gray = new cv.Mat();
     cv.cvtColor(resized, gray, cv.COLOR_RGBA2GRAY, 0);
     
-    // BLUR BILATERAL: melhor que o Gaussiano porque preserva bordas fortes e elimina texturas (ruídos)
     let blurred = new cv.Mat();
     cv.bilateralFilter(gray, blurred, 9, 75, 75);
     
-    // CANNY com limiares mais soltos
     let edged = new cv.Mat();
     cv.Canny(blurred, edged, 30, 100);
 
-    // DILATAÇÃO: fecha buracos nas bordas (caso a linha do papel não esteja contínua por causa de luz)
     let kernel = cv.Mat.ones(3, 3, cv.CV_8U);
     cv.dilate(edged, edged, kernel, new cv.Point(-1, -1), 1, cv.BORDER_CONSTANT, cv.morphologyDefaultBorderValue());
 
@@ -112,12 +106,11 @@ document.getElementById('btn-capture').addEventListener('click', () => {
     let hierarchy = new cv.Mat();
     cv.findContours(edged, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
-    // Listar e ordenar contornos pelo tamanho
     let cntsList = [];
     for (let i = 0; i < contours.size(); i++) {
         let cnt = contours.get(i);
         let area = cv.contourArea(cnt);
-        if (area > 10000) { // Área mínima bem menor agora
+        if (area > 10000) {
             cntsList.push({cnt: cnt, area: area});
         }
     }
@@ -125,16 +118,12 @@ document.getElementById('btn-capture').addEventListener('click', () => {
 
     let docContour = null;
 
-    // Tentativa robusta de achar a folha
     for (let i = 0; i < cntsList.length; i++) {
         let c = cntsList[i].cnt;
         let peri = cv.arcLength(c, true);
-        
-        // Tenta várias tolerâncias (0.02 a 0.05). Às vezes a folha tá meio curvada.
         for (let eps of [0.02, 0.03, 0.04, 0.05]) {
             let approx = new cv.Mat();
             cv.approxPolyDP(c, approx, eps * peri, true);
-            
             if (approx.rows === 4) {
                 docContour = approx.clone();
                 approx.delete();
@@ -146,10 +135,8 @@ document.getElementById('btn-capture').addEventListener('click', () => {
     }
 
     if (docContour != null) {
-        // Encontrou a folha! Alinha usando o ratio pra voltar ao tamanho original do celular
+        // --- PARTE 1: ALINHAR A FOLHA ---
         let orderedPts = orderPoints(docContour);
-        
-        // Múltiplicar os pontos pelo ratio
         let ptsArray = orderedPts.data32F;
         for(let i=0; i<8; i++) {
             ptsArray[i] = ptsArray[i] * ratio;
@@ -157,24 +144,61 @@ document.getElementById('btn-capture').addEventListener('click', () => {
         
         let maxWidth = 800;
         let maxHeight = 1130;
-        
-        let dstPts = cv.matFromArray(4, 1, cv.CV_32FC2, [
-            0, 0, 
-            maxWidth - 1, 0, 
-            maxWidth - 1, maxHeight - 1, 
-            0, maxHeight - 1
-        ]);
+        let dstPts = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, maxWidth - 1, 0, maxWidth - 1, maxHeight - 1, 0, maxHeight - 1]);
         
         let M = cv.getPerspectiveTransform(orderedPts, dstPts);
         let warped = new cv.Mat();
-        let dsize = new cv.Size(maxWidth, maxHeight);
-        cv.warpPerspective(src, warped, M, dsize, cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
+        cv.warpPerspective(src, warped, M, new cv.Size(maxWidth, maxHeight), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
         
-        cv.imshow('output-canvas', warped);
-        statusMsg.innerText = `Folha alinhada! (Clique para voltar)`;
+        // --- PARTE 2: LER AS BOLINHAS E CALCULAR A NOTA ---
+        let warpedGray = new cv.Mat();
+        cv.cvtColor(warped, warpedGray, cv.COLOR_RGBA2GRAY, 0);
         
-        orderedPts.delete(); dstPts.delete(); M.delete(); warped.delete();
-        docContour.delete();
+        // Binarização: bolinhas pretas ficam brancas (facilita o cálculo de preenchimento)
+        let thresh = new cv.Mat();
+        cv.threshold(warpedGray, thresh, 0, 255, cv.THRESH_BINARY_INV | cv.THRESH_OTSU);
+
+        // Encontrar os contornos das bolinhas
+        let bubbleCnts = new cv.MatVector();
+        let hierarchy2 = new cv.Mat();
+        cv.findContours(thresh, bubbleCnts, hierarchy2, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+        
+        let validBubbles = [];
+        for (let i = 0; i < bubbleCnts.size(); i++) {
+            let cnt = bubbleCnts.get(i);
+            let rect = cv.boundingRect(cnt);
+            let ar = rect.width / rect.height;
+            
+            // Filtrar tudo que pareça uma bolinha (tamanho e formato)
+            if (rect.width >= 10 && rect.width <= 40 && rect.height >= 10 && rect.height <= 40 && ar >= 0.7 && ar <= 1.3) {
+                validBubbles.push(rect);
+            }
+        }
+        
+        // Desenhar os círculos detectados pra fins de debug visual
+        for(let b of validBubbles) {
+            cv.rectangle(warped, new cv.Point(b.x, b.y), new cv.Point(b.x + b.width, b.y + b.height), [255, 0, 0, 255], 2);
+        }
+
+        // Se encontrou perto de 300 bolinhas, nós agrupamos!
+        // Como dependendo da luz pode perder algumas bolinhas, vamos avisar se não achar
+        if (validBubbles.length < 250) {
+            statusMsg.innerText = `Erro: Achei poucas bolinhas (${validBubbles.length}/300). Melhore a luz.`;
+            cv.imshow('output-canvas', warped);
+        } else {
+            // Lógica de correção por Geometria (usaremos grades matemáticas para evitar falha se perder 1 bolinha)
+            // A imagem tem 800 x 1130. 
+            // As 4 colunas estão divididas na largura.
+            let colWidth = maxWidth / 4;
+            
+            // Vamos testar agrupar as bolinhas detectadas.
+            statusMsg.innerText = `SISTEMA EM CONSTRUÇÃO: Achei ${validBubbles.length} bolinhas! (Quase pronto)`;
+            cv.imshow('output-canvas', warped);
+        }
+        
+        orderedPts.delete(); dstPts.delete(); M.delete(); warped.delete(); docContour.delete();
+        warpedGray.delete(); thresh.delete(); bubbleCnts.delete(); hierarchy2.delete();
+        
     } else {
         cv.imshow('output-canvas', edged);
         statusMsg.innerText = `Erro: Folha não achada (mostrando bordas detectadas).`;
