@@ -157,6 +157,41 @@ function setupHandles() {
         alert("Erro no setup: " + e.message);
     }
 }
+
+function updateHandlesUI() {
+    let polygon = document.getElementById('crop-polygon');
+    let points = "";
+    
+    for (let h of handles) {
+        let el = document.getElementById(h.id);
+        el.style.left = h.x + 'px';
+        el.style.top = h.y + 'px';
+        points += `${h.x},${h.y} `;
+    }
+    polygon.setAttribute('points', points.trim());
+}
+
+// Lógica de arrastar (Drag & Drop para mobile)
+function handleTouchStart(e) {
+    if (e.target.classList.contains('drag-handle')) {
+        activeHandle = handles.find(h => h.id === e.target.id);
+    }
+}
+function handleTouchMove(e) {
+    if (!activeHandle) return;
+    e.preventDefault();
+    let touch = e.touches ? e.touches[0] : e;
+    let container = document.getElementById('review-canvas-container').getBoundingClientRect();
+    
+    let nx = touch.clientX - container.left;
+    let ny = touch.clientY - container.top;
+    
+    // Limita dentro do container
+    activeHandle.x = Math.max(0, Math.min(nx, container.width));
+    activeHandle.y = Math.max(0, Math.min(ny, container.height));
+    
+    updateHandlesUI();
+}
 function handleTouchEnd() {
     activeHandle = null;
 }
