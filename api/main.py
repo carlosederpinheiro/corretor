@@ -6,7 +6,6 @@ import base64
 
 app = FastAPI()
 
-# Permite que o GitHub Pages chame essa API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -31,7 +30,6 @@ GABARITOS = {
 
 @app.post("/corrigir/")
 async def corrigir_prova(file: UploadFile = File(...), exam: str = Form(...)):
-    # 1. Ler a imagem
     contents = await file.read()
     nparr = np.frombuffer(contents, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -39,7 +37,6 @@ async def corrigir_prova(file: UploadFile = File(...), exam: str = Form(...)):
     if img is None:
         return {"error": "Falha ao ler a imagem"}
 
-    # Reduzir o tamanho da imagem para processamento mais rápido, mantendo boa resolução
     max_dim = 1500
     h, w = img.shape[:2]
     if max(h, w) > max_dim:
@@ -49,28 +46,40 @@ async def corrigir_prova(file: UploadFile = File(...), exam: str = Form(...)):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
 
-    # 2. Encontrar as âncoras (círculos nos cantos)
+    # --- LÓGICA INTELIGENTE DE BUSCA DE ÂNCORAS ---
     cnts, _ = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-    candidates = []
     
+    areas = []
+    candidates = []
     for c in cnts:
         area = cv2.contourArea(c)
-        if area > 100: # Âncoras são grandes
+        if area > 50:
             x, y, w_box, h_box = cv2.boundingRect(c)
             ar = w_box / float(h_box)
             if 0.5 <= ar <= 1.5:
-                cx = x + w_box / 2
-                cy = y + h_box / 2
-                candidates.append({"cx": cx, "cy": cy, "area": area})
+                areas.append(area)
+                candidates.append({"cx": x + w_box/2, "cy": y + h_box/2, "area": area})
                 
-    if len(candidates) < 4:
-        return {"error": "Não encontrei as 4 âncoras. Tente afastar o celular."}
+    if not areas:
+        return {"error": "Nenhuma marcação encontrada na imagem."}
+        
+    # Como a folha tem 300 bolinhas, a mediana de todas as áreas circulares da folha
+    # será EXATAMENTE o tamanho de uma bolinha!
+    median_area = np.median(areas)
+    
+    # As âncoras são muito maiores que as bolinhas. 
+    # Filtramos para pegar apenas objetos que são pelo menos 3x maiores que uma bolinha.
+    # Isso ELIMINA completamente o risco do algoritmo achar que uma bolinha é a quina da folha!
+    large_candidates = [c for c in candidates if c["area"] > median_area * 3.0]
+    
+    if len(large_candidates) < 4:
+        return {"error": "Não encontrei as 4 âncoras. Tente afastar o celular e enquadrar a folha toda."}
 
-    # Pegar os 4 extremos absolutos da imagem
-    tl = min(candidates, key=lambda c: c["cx"] + c["cy"])
-    br = max(candidates, key=lambda c: c["cx"] + c["cy"])
-    tr = max(candidates, key=lambda c: c["cx"] - c["cy"])
-    bl = min(candidates, key=lambda c: c["cx"] - c["cy"])
+    # Agora podemos pegar os 4 cantos com segurança!
+    tl = min(large_candidates, key=lambda c: c["cx"] + c["cy"])
+    br = max(large_candidates, key=lambda c: c["cx"] + c["cy"])
+    tr = max(large_candidates, key=lambda c: c["cx"] - c["cy"])
+    bl = min(large_candidates, key=lambda c: c["cx"] - c["cy"])
 
     # 3. Transformação de Perspectiva
     W = 1000
@@ -132,7 +141,6 @@ async def corrigir_prova(file: UploadFile = File(...), exam: str = Form(...)):
                 x_end = colStartX + (o + 1) * optW
                 optionCoords.append((x_start, y_start, x_end, y_end))
                 
-                # Margem de segurança de 4 pixels para não pegar a borda do quadrado
                 roi = warped_thresh[y_start+4:y_end-4, x_start+4:x_end-4]
                 nonZero = cv2.countNonZero(roi)
                 
@@ -140,7 +148,6 @@ async def corrigir_prova(file: UploadFile = File(...), exam: str = Form(...)):
                     maxPixels = nonZero
                     chosenOptionIndex = o
 
-            # Limite mínimo de pixels pretos (15% da área do quadradinho)
             area_quadradinho = (y_end - y_start - 8) * (x_end - x_start - 8)
             if maxPixels > (area_quadradinho * 0.15):
                 if options[chosenOptionIndex] == gabarito[index]:
@@ -148,7 +155,6 @@ async def corrigir_prova(file: UploadFile = File(...), exam: str = Form(...)):
             else:
                 chosenOptionIndex = -1
 
-            # Desenha os quadradinhos para o Raio-X
             for o in range(5):
                 color = (0, 255, 0) if o == chosenOptionIndex else (0, 0, 255)
                 x1, y1, x2, y2 = optionCoords[o]
@@ -156,7 +162,6 @@ async def corrigir_prova(file: UploadFile = File(...), exam: str = Form(...)):
             
             index += 1
 
-    # Codifica a imagem resultante em base64 para o frontend
     _, buffer = cv2.imencode('.jpg', warped_color)
     img_b64 = base64.b64encode(buffer).decode('utf-8')
 
