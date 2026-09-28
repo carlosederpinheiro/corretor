@@ -2,56 +2,172 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Corretor Automático Pro</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Corretor Automático Pro - Desktop</title>
     <style>
-        body { margin: 0; padding: 0; background-color: #121212; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; }
-        h1 { margin-top: 50px; color: #3498db; }
-        .subtitle { color: #bdc3c7; margin-bottom: 40px; }
+        body { margin: 0; padding: 0; background-color: #f5f6fa; color: #2f3640; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         
-        .btn-exam { display: inline-block; background-color: #3498db; color: white; border: none; padding: 20px 30px; margin: 15px; border-radius: 12px; font-size: 20px; font-weight: bold; cursor: pointer; width: 80%; max-width: 300px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.1s; text-decoration: none; }
-        .btn-exam:active { transform: scale(0.95); }
+        .header { background-color: #2c3e50; color: white; padding: 20px 40px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .header h1 { margin: 0; font-size: 24px; }
         
-        #loading-screen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 50; flex-direction: column; align-items: center; justify-content: center; }
-        .spinner { border: 6px solid #f3f3f3; border-top: 6px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        .container { max-width: 1200px; margin: 40px auto; padding: 0 20px; display: flex; gap: 30px; }
+        
+        .upload-section { flex: 1; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .result-section { flex: 1; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); display: none; flex-direction: column; align-items: center; }
+        
+        h2 { margin-top: 0; color: #2c3e50; }
+        
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; font-weight: bold; margin-bottom: 8px; }
+        .form-group select { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #dcdde1; font-size: 16px; }
+        
+        .drop-zone { border: 3px dashed #3498db; border-radius: 10px; padding: 50px 20px; text-align: center; cursor: pointer; transition: background 0.3s; background-color: #f1f8ff; }
+        .drop-zone.dragover { background-color: #d1ecf1; border-color: #17a2b8; }
+        .drop-zone p { margin: 0; font-size: 18px; color: #34495e; }
+        .drop-zone span { font-size: 14px; color: #7f8c8d; }
+        
+        .btn-submit { background-color: #2ecc71; color: white; border: none; padding: 15px 30px; font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 20px; transition: background 0.2s; }
+        .btn-submit:hover { background-color: #27ae60; }
+        .btn-submit:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+        
+        #file-input { display: none; }
+        
+        .score-box { background: #f8f9fa; border: 2px solid #2ecc71; border-radius: 12px; padding: 30px; text-align: center; width: 100%; margin-bottom: 20px; }
+        .score-box .score { font-size: 70px; font-weight: bold; color: #2ecc71; line-height: 1; margin: 10px 0; }
+        
+        .debug-img { width: 100%; border-radius: 8px; border: 1px solid #dcdde1; }
+        
+        #loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); z-index: 100; flex-direction: column; align-items: center; justify-content: center; }
+        .spinner { border: 6px solid #f3f3f3; border-top: 6px solid #3498db; border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; margin-bottom: 20px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
-        #result-screen { display: none; padding: 20px; }
-        .score { font-size: 80px; font-weight: bold; color: #2ecc71; margin-top: 20px; }
-        .debug-img { width: 100%; max-width: 500px; border-radius: 8px; margin-top: 20px; border: 2px solid #2ecc71; }
-        .btn-back { background-color: #e74c3c; margin-top: 30px; }
     </style>
 </head>
 <body>
 
-    <div id="home-screen">
-        <h1>Corretor Pro</h1>
-        <p class="subtitle">Visão Computacional na Nuvem</p>
-        
-        <!-- Input escondido para invocar a câmera nativa do celular -->
-        <input type="file" id="camera-input" accept="image/*" capture="environment" style="display: none;">
-        
-        <button class="btn-exam" onclick="startCapture('SIS 2')">Corrigir SIS 2</button>
-        <button class="btn-exam" onclick="startCapture('SIS 3')">Corrigir SIS 3</button>
+    <div class="header">
+        <h1>Corretor de Gabaritos Pro</h1>
+        <span>Versão Desktop (Imagens Escaneadas)</span>
     </div>
 
-    <div id="loading-screen">
+    <div class="container">
+        <!-- ÁREA DE UPLOAD -->
+        <div class="upload-section">
+            <h2>Nova Correção</h2>
+            
+            <div class="form-group">
+                <label>Qual prova deseja corrigir?</label>
+                <select id="exam-select">
+                    <option value="SIS 2">Gabarito SIS 2</option>
+                    <option value="SIS 3">Gabarito SIS 3</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>Arquivo Escaneado (JPG, PNG)</label>
+                <div class="drop-zone" id="drop-zone">
+                    <p id="drop-text">Clique aqui para selecionar ou arraste a imagem do scanner</p>
+                    <span id="file-name">Nenhum arquivo selecionado</span>
+                </div>
+                <input type="file" id="file-input" accept="image/*">
+            </div>
+            
+            <button class="btn-submit" id="btn-submit" disabled>Corrigir Prova</button>
+        </div>
+        
+        <!-- ÁREA DE RESULTADO -->
+        <div class="result-section" id="result-section">
+            <div class="score-box">
+                <div>Nota Final do Aluno</div>
+                <div class="score" id="final-score">--</div>
+                <div>de 60 questões</div>
+            </div>
+            
+            <h3 style="margin-top: 0; width: 100%; text-align: left;">Raio-X da Leitura</h3>
+            <img id="debug-image" class="debug-img" src="" alt="Raio-X">
+        </div>
+    </div>
+
+    <div id="loading-overlay">
         <div class="spinner"></div>
-        <h2>Analisando prova...</h2>
-        <p>A inteligência artificial está lendo as respostas.</p>
+        <h2>Analisando arquivo...</h2>
+        <p>Aguarde enquanto a inteligência artificial processa a imagem escaneada.</p>
     </div>
 
-    <div id="result-screen">
-        <h2>Nota do Aluno</h2>
-        <div class="score" id="final-score">--</div>
-        <p>de 60 questões</p>
+    <script>
+        const API_URL = "https://corretor-api-yaa5.onrender.com/corrigir/"; 
         
-        <h3>Raio-X da Correção:</h3>
-        <img id="debug-image" class="debug-img" src="" alt="Raio-X">
-        <br>
-        <button class="btn-exam btn-back" onclick="resetApp()">Corrigir Outra</button>
-    </div>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const fileNameSpan = document.getElementById('file-name');
+        const btnSubmit = document.getElementById('btn-submit');
+        let selectedFile = null;
 
-    <script src="app.js"></script>
+        // Eventos de Drag & Drop
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            selectedFile = file;
+            fileNameSpan.innerText = file.name;
+            fileNameSpan.style.color = "#2ecc71";
+            fileNameSpan.style.fontWeight = "bold";
+            btnSubmit.disabled = false;
+        }
+
+        btnSubmit.addEventListener('click', async () => {
+            if (!selectedFile) return;
+            
+            const examSelect = document.getElementById('exam-select').value;
+            
+            document.getElementById('loading-overlay').style.display = 'flex';
+            document.getElementById('result-section').style.display = 'none';
+            
+            let formData = new FormData();
+            formData.append("file", selectedFile);
+            formData.append("exam", examSelect);
+            
+            try {
+                let response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                let data = await response.json();
+                document.getElementById('loading-overlay').style.display = 'none';
+                
+                if (data.error) {
+                    alert("Erro na API: " + data.error);
+                } else {
+                    document.getElementById('final-score').innerText = data.score;
+                    document.getElementById('debug-image').src = data.debug_image;
+                    document.getElementById('result-section').style.display = 'flex';
+                }
+            } catch (err) {
+                document.getElementById('loading-overlay').style.display = 'none';
+                alert("Erro ao conectar com a API no Render: " + err.message);
+            }
+        });
+    </script>
 </body>
 </html>
