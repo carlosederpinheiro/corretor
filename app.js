@@ -31,15 +31,15 @@ function setupMask() {
     let screenW = window.innerWidth;
     let screenH = window.innerHeight;
     
-    // O recorte vai ocupar 80% da largura da tela
-    let cutoutW = screenW * 0.8;
-    // O gabarito é retangular (mais alto que largo). Proporção estimada: 1 : 1.3
-    let cutoutH = cutoutW * 1.3; 
+    // O recorte vai ocupar 90% da largura da tela no celular
+    let cutoutW = screenW * 0.9;
+    // Baseado na nossa análise do PDF, as âncoras formam um retângulo horizontal (ratio H/W = 0.54)
+    let cutoutH = cutoutW * 0.54; 
     
-    // Se a tela do celular for muito baixinha, ajusta pela altura
-    if (cutoutH > screenH * 0.7) {
-        cutoutH = screenH * 0.7;
-        cutoutW = cutoutH / 1.3;
+    // Se a altura passar da tela (raro, já que é horizontal), ajusta
+    if (cutoutH > screenH * 0.8) {
+        cutoutH = screenH * 0.8;
+        cutoutW = cutoutH / 0.54;
     }
     
     let cutoutX = (screenW - cutoutW) / 2;
@@ -51,7 +51,6 @@ function setupMask() {
     cutout.style.left = cutoutX + 'px';
     cutout.style.top = cutoutY + 'px';
     
-    // Ajusta as máscaras pretas ao redor
     document.getElementById('mask-top').style.height = cutoutY + 'px';
     document.getElementById('mask-bottom').style.height = (screenH - (cutoutY + cutoutH)) + 'px';
     document.getElementById('mask-left').style.width = cutoutX + 'px';
