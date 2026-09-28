@@ -3,161 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Leitor de Gabarito</title>
+    <title>Scanner de Gabarito</title>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #1a1a1a;
-            color: #ffffff;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            height: 100vh;
-        }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #1a1a1a; font-family: -apple-system, BlinkMacSystemFont, sans-serif; color: white; overflow: hidden; }
+        
+        /* TELA 1: HOME */
+        #home-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 20px; text-align: center; }
+        .logo { font-size: 28px; font-weight: bold; margin-bottom: 10px; color: #3498db; }
+        .subtitle { font-size: 14px; color: #95a5a6; margin-bottom: 50px; }
+        .btn-exam { width: 85%; padding: 22px; margin: 12px 0; border-radius: 16px; border: none; font-size: 20px; font-weight: bold; background-color: #2c3e50; color: white; box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
+        .btn-exam:active { background-color: #34495e; transform: scale(0.98); }
+        
+        /* TELA 2: SCANNER */
+        #scanner-screen { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: #000; }
+        #video-feed { width: 100%; height: 100%; object-fit: cover; }
+        
+        #btn-back { position: absolute; top: 40px; left: 20px; background: rgba(0,0,0,0.6); border: none; color: white; padding: 12px 20px; border-radius: 8px; z-index: 20; font-size: 16px; font-weight: bold; }
+        
+        #scan-instruction { position: absolute; top: 100px; left: 0; width: 100%; text-align: center; font-size: 20px; font-weight: bold; text-shadow: 0 2px 5px rgba(0,0,0,1); z-index: 20; pointer-events: none; }
+        #scan-subinstruction { position: absolute; bottom: 50px; left: 0; width: 100%; text-align: center; font-size: 16px; color: #f39c12; font-weight: bold; text-shadow: 0 2px 5px rgba(0,0,0,1); z-index: 20; pointer-events: none; }
 
-        .header {
-            width: 100%;
-            padding: 15px 0;
-            text-align: center;
-            background-color: #2c3e50;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
-            z-index: 10;
-        }
+        /* MÁSCARA ESCURA EM VOLTA DO RECORTE */
+        #mask-top, #mask-bottom, #mask-left, #mask-right { position: absolute; background: rgba(0, 0, 0, 0.75); pointer-events: none; z-index: 10; }
+        
+        /* O RECORTE CENTRAL ONDE FICAM AS ÂNCORAS */
+        #cutout { position: absolute; border: 2px solid rgba(255, 255, 255, 0.3); box-sizing: border-box; z-index: 11; pointer-events: none; }
+        
+        /* AS 4 ÂNCORAS (BULLSEYES VIRTUAIS) */
+        .anchor-circle { position: absolute; width: 50px; height: 50px; border: 4px solid #e74c3c; border-radius: 50%; box-sizing: border-box; background: rgba(231, 76, 60, 0.2); }
+        .anchor-tl { top: 0; left: 0; transform: translate(-50%, -50%); }
+        .anchor-tr { top: 0; right: 0; transform: translate(50%, -50%); }
+        .anchor-bl { bottom: 0; left: 0; transform: translate(-50%, 50%); }
+        .anchor-br { bottom: 0; right: 0; transform: translate(50%, 50%); }
 
-        .camera-container {
-            position: relative;
-            width: 100%;
-            flex-grow: 1;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: #000;
-            overflow: hidden;
-        }
+        /* ÁREA DE TOQUE (Ocupa a tela toda do scanner) */
+        #touch-area { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 15; }
 
-        #video-feed {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
+        /* TELAS DE CARREGAMENTO E RESULTADO */
+        #loading { display: flex; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #1a1a1a; align-items: center; justify-content: center; z-index: 50; flex-direction: column; }
+        
+        #result-modal { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 100; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        .result-title { font-size: 24px; color: #bdc3c7; }
+        .score { font-size: 100px; font-weight: bold; color: #2ecc71; margin: 10px 0; text-shadow: 0 0 20px rgba(46, 204, 113, 0.5); }
+        .score-total { font-size: 20px; color: #7f8c8d; margin-bottom: 40px; }
+        .btn-next { padding: 18px 50px; border-radius: 30px; border: none; font-size: 20px; font-weight: bold; background-color: #3498db; color: white; box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4); }
+        .btn-next:active { transform: scale(0.95); }
 
-        /* O canvas onde o OpenCV vai processar e desenhar o resultado */
-        #output-canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            z-index: 5;
-            display: none; 
-        }
-
-        .controls {
-            width: 100%;
-            padding: 20px;
-            background-color: #2c3e50;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 15px;
-            box-sizing: border-box;
-            z-index: 10;
-            padding-bottom: 40px; /* Safe area for modern phones */
-        }
-
-        .exam-selector {
-            display: flex;
-            gap: 10px;
-            width: 100%;
-        }
-
-        .exam-btn {
-            flex: 1;
-            padding: 12px;
-            border: 2px solid #3498db;
-            background-color: transparent;
-            color: white;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
-        }
-
-        .exam-btn.active {
-            background-color: #3498db;
-        }
-
-        .capture-btn {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            background-color: #e74c3c;
-            border: 4px solid #fff;
-            box-shadow: 0 0 10px rgba(0,0,0,0.5);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .capture-btn:active {
-            background-color: #c0392b;
-            transform: scale(0.95);
-        }
-
-        #status-msg {
-            font-size: 14px;
-            color: #bdc3c7;
-            text-align: center;
-            margin-top: 5px;
-        }
-
-        /* Loading Spinner */
-        #loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0,0,0,0.8);
-            padding: 20px;
-            border-radius: 10px;
-            text-align: center;
-            z-index: 20;
-        }
+        canvas { display: none; }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <h2>Scanner de Gabarito</h2>
+    <!-- TELA 1: HOME -->
+    <div id="home-screen">
+        <div class="logo">Scanner Automático</div>
+        <div class="subtitle">Escolha o gabarito para iniciar a correção</div>
+        
+        <button class="btn-exam" onclick="openScanner('SIS 2')">Corrigir SIS 2</button>
+        <button class="btn-exam" onclick="openScanner('SIS 3')">Corrigir SIS 3</button>
     </div>
 
-    <div class="camera-container">
-        <!-- O vídeo direto da câmera -->
+    <!-- TELA 2: SCANNER EM TELA CHEIA -->
+    <div id="scanner-screen">
         <video id="video-feed" autoplay playsinline></video>
-        <!-- O canvas onde mostraremos o resultado e o desenho do gabarito alinhado -->
-        <canvas id="output-canvas"></canvas>
+        <button id="btn-back" onclick="closeScanner()">Voltar</button>
         
-        <div id="loading">
-            <p>Carregando Inteligência...</p>
+        <div id="scan-instruction">Alinhe as 4 âncoras</div>
+        <div id="scan-subinstruction">TOQUE NA TELA PARA FOTOGRAFAR</div>
+        
+        <!-- MÁSCARA ESCURA -->
+        <div id="mask-top"></div>
+        <div id="mask-bottom"></div>
+        <div id="mask-left"></div>
+        <div id="mask-right"></div>
+        
+        <!-- RECORTE TRANSPARENTE E ÂNCORAS -->
+        <div id="cutout">
+            <div class="anchor-circle anchor-tl"></div>
+            <div class="anchor-circle anchor-tr"></div>
+            <div class="anchor-circle anchor-bl"></div>
+            <div class="anchor-circle anchor-br"></div>
         </div>
+        
+        <!-- CAMADA INVISÍVEL PARA DETECTAR O TOQUE -->
+        <div id="touch-area"></div>
     </div>
 
-    <div class="controls">
-        <div id="status-msg">Aguardando câmera...</div>
-        
-        <div class="exam-selector">
-            <button class="exam-btn active" id="btn-sis2">SIS 2</button>
-            <button class="exam-btn" id="btn-sis3">SIS 3</button>
-        </div>
-
-        <div class="capture-btn" id="btn-capture"></div>
+    <!-- TELA DE RESULTADO -->
+    <div id="result-modal">
+        <div class="result-title" id="result-exam-name">Nota do Aluno</div>
+        <div class="score" id="final-score">--</div>
+        <div class="score-total">de 60 questões</div>
+        <button class="btn-next" onclick="resetScanner()">Próxima Prova</button>
     </div>
 
-    <!-- Importando o OpenCV.js (versão WebAssembly para rodar rápido) -->
-    <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
-    
+    <!-- TELA DE CARREGAMENTO INICIAL -->
+    <div id="loading">
+        <h2>Carregando IA...</h2>
+        <p>Baixando os modelos de visão (só na 1ª vez)</p>
+    </div>
+
+    <!-- CANVAS OCULTOS PARA PROCESSAMENTO -->
+    <canvas id="capture-canvas"></canvas>
+
+    <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady();"></script>
     <script src="app.js"></script>
 </body>
 </html>
