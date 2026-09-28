@@ -240,5 +240,5 @@ function showDebugCanvas() {
 function resetScanner() {
     document.getElementById('result-modal').style.display = 'none';
     document.getElementById('debug-canvas').style.display = 'none';
-    document.getElementById('scan-subinstruction').innerText = "TOQUE NA TELA PARA FOTOGRAFAR";
+    document.getElementById('scan-subinstruction').innerText = "ENCAIXE AS BOLINHAS NAS GRADES E TOQUE";
 }

@@ -50,6 +50,22 @@
         .btn-next:active { transform: scale(0.95); }
 
         canvas { display: none; }
+    
+        /* GRADES VISUAIS DAS COLUNAS (DNA MATEMÁTICO) */
+        .grid-col {
+            position: absolute;
+            top: 7.6%; 
+            height: 86.6%; /* 94.2% - 7.6% */
+            border: 1px solid rgba(231, 76, 60, 0.6);
+            background-image: 
+                repeating-linear-gradient(to bottom, transparent, transparent calc(100% / 15 - 1px), rgba(231, 76, 60, 0.3) calc(100% / 15 - 1px), rgba(231, 76, 60, 0.3) calc(100% / 15)),
+                repeating-linear-gradient(to right, transparent, transparent calc(100% / 5 - 1px), rgba(231, 76, 60, 0.3) calc(100% / 5 - 1px), rgba(231, 76, 60, 0.3) calc(100% / 5));
+        }
+        #grid-c1 { left: 7.6%; width: 16.2%; }
+        #grid-c2 { left: 31.7%; width: 16.1%; }
+        #grid-c3 { left: 55.9%; width: 16.1%; }
+        #grid-c4 { left: 80.0%; width: 16.2%; }
+
     </style>
 </head>
 <body>
@@ -69,7 +85,7 @@
         <button id="btn-back" onclick="closeScanner()">Voltar</button>
         
         <div id="scan-instruction">Alinhe as 4 âncoras</div>
-        <div id="scan-subinstruction">TOQUE NA TELA PARA FOTOGRAFAR</div>
+        <div id="scan-subinstruction">ENCAIXE AS BOLINHAS NAS GRADES E TOQUE</div>
         
         <!-- MÁSCARA ESCURA -->
         <div id="mask-top"></div>
@@ -83,6 +99,13 @@
             <div class="anchor-circle anchor-tr"></div>
             <div class="anchor-circle anchor-bl"></div>
             <div class="anchor-circle anchor-br"></div>
+
+            <!-- AS 4 GRADES PARA ENCAIXE DAS BOLINHAS -->
+            <div class="grid-col" id="grid-c1"></div>
+            <div class="grid-col" id="grid-c2"></div>
+            <div class="grid-col" id="grid-c3"></div>
+            <div class="grid-col" id="grid-c4"></div>
+
         </div>
         
         <!-- CAMADA INVISÍVEL PARA DETECTAR O TOQUE -->
