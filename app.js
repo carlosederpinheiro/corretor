@@ -54,29 +54,24 @@ async function startCamera() {
     }
 }
 
-// Ordenar pontos do retângulo para a transformação de perspectiva
-// Ordem esperada: Top-Left, Top-Right, Bottom-Right, Bottom-Left
+// Ordenar pontos do retângulo (Top-Left, Top-Right, Bottom-Right, Bottom-Left)
 function orderPoints(pts) {
     let rect = new cv.Mat(4, 1, cv.CV_32FC2);
     let ptsData = pts.data32S;
     
-    // Converte os pontos para array de objetos pra facilitar o cálculo
     let pointsArray = [];
     for(let i=0; i<4; i++){
         pointsArray.push({x: ptsData[i*2], y: ptsData[i*2 + 1]});
     }
 
-    // Soma (x + y) -> Top-Left tem a menor soma, Bottom-Right tem a maior
     let sums = pointsArray.map(p => p.x + p.y);
     let tl = pointsArray[sums.indexOf(Math.min(...sums))];
     let br = pointsArray[sums.indexOf(Math.max(...sums))];
 
-    // Diferença (x - y) -> Top-Right tem a maior diff, Bottom-Left tem a menor
     let diffs = pointsArray.map(p => p.x - p.y);
     let tr = pointsArray[diffs.indexOf(Math.max(...diffs))];
     let bl = pointsArray[diffs.indexOf(Math.min(...diffs))];
 
-    // Popula o rect na ordem certa (x, y)
     rect.data32F.set([tl.x, tl.y, tr.x, tr.y, br.x, br.y, bl.x, bl.y]);
     return rect;
 }
@@ -89,47 +84,77 @@ document.getElementById('btn-capture').addEventListener('click', () => {
     ctx.drawImage(video, 0, 0, canvasOutput.width, canvasOutput.height);
     
     let src = cv.imread(canvasOutput);
-    let gray = new cv.Mat();
-    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
     
-    // Borrar e achar bordas
+    // REDIMENSIONAMENTO: fundamental para celulares com câmera 4K
+    let maxH = 800;
+    let ratio = src.rows / maxH;
+    let newW = Math.round(src.cols / ratio);
+    
+    let resized = new cv.Mat();
+    cv.resize(src, resized, new cv.Size(newW, maxH), 0, 0, cv.INTER_AREA);
+    
+    let gray = new cv.Mat();
+    cv.cvtColor(resized, gray, cv.COLOR_RGBA2GRAY, 0);
+    
+    // BLUR BILATERAL: melhor que o Gaussiano porque preserva bordas fortes e elimina texturas (ruídos)
     let blurred = new cv.Mat();
-    cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0, 0, cv.BORDER_DEFAULT);
+    cv.bilateralFilter(gray, blurred, 9, 75, 75);
+    
+    // CANNY com limiares mais soltos
     let edged = new cv.Mat();
-    cv.Canny(blurred, edged, 75, 200);
+    cv.Canny(blurred, edged, 30, 100);
 
-    // Encontrar contornos
+    // DILATAÇÃO: fecha buracos nas bordas (caso a linha do papel não esteja contínua por causa de luz)
+    let kernel = cv.Mat.ones(3, 3, cv.CV_8U);
+    cv.dilate(edged, edged, kernel, new cv.Point(-1, -1), 1, cv.BORDER_CONSTANT, cv.morphologyDefaultBorderValue());
+
     let contours = new cv.MatVector();
     let hierarchy = new cv.Mat();
     cv.findContours(edged, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
-    let maxArea = 0;
-    let docContour = null;
-
-    // Procurar o maior contorno com 4 pontas (a folha de papel)
+    // Listar e ordenar contornos pelo tamanho
+    let cntsList = [];
     for (let i = 0; i < contours.size(); i++) {
         let cnt = contours.get(i);
         let area = cv.contourArea(cnt);
+        if (area > 10000) { // Área mínima bem menor agora
+            cntsList.push({cnt: cnt, area: area});
+        }
+    }
+    cntsList.sort((a, b) => b.area - a.area);
+
+    let docContour = null;
+
+    // Tentativa robusta de achar a folha
+    for (let i = 0; i < cntsList.length; i++) {
+        let c = cntsList[i].cnt;
+        let peri = cv.arcLength(c, true);
         
-        if (area > 50000) { // Ignorar lixos pequenos
-            let peri = cv.arcLength(cnt, true);
+        // Tenta várias tolerâncias (0.02 a 0.05). Às vezes a folha tá meio curvada.
+        for (let eps of [0.02, 0.03, 0.04, 0.05]) {
             let approx = new cv.Mat();
-            cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
+            cv.approxPolyDP(c, approx, eps * peri, true);
             
-            if (approx.rows === 4 && area > maxArea) {
-                maxArea = area;
-                if (docContour != null) docContour.delete();
+            if (approx.rows === 4) {
                 docContour = approx.clone();
+                approx.delete();
+                break;
             }
             approx.delete();
         }
+        if (docContour != null) break;
     }
 
     if (docContour != null) {
-        // Encontrou a folha! Vamos alinhar.
+        // Encontrou a folha! Alinha usando o ratio pra voltar ao tamanho original do celular
         let orderedPts = orderPoints(docContour);
         
-        // Tamanho alvo do gabarito (A4 padrão proporção)
+        // Múltiplicar os pontos pelo ratio
+        let ptsArray = orderedPts.data32F;
+        for(let i=0; i<8; i++) {
+            ptsArray[i] = ptsArray[i] * ratio;
+        }
+        
         let maxWidth = 800;
         let maxHeight = 1130;
         
@@ -140,33 +165,28 @@ document.getElementById('btn-capture').addEventListener('click', () => {
             0, maxHeight - 1
         ]);
         
-        // Transforma a perspectiva
         let M = cv.getPerspectiveTransform(orderedPts, dstPts);
         let warped = new cv.Mat();
         let dsize = new cv.Size(maxWidth, maxHeight);
         cv.warpPerspective(src, warped, M, dsize, cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
         
-        // Mostra o resultado do alinhamento pra gente ver se funcionou
         cv.imshow('output-canvas', warped);
         statusMsg.innerText = `Folha alinhada! (Clique para voltar)`;
         
         orderedPts.delete(); dstPts.delete(); M.delete(); warped.delete();
         docContour.delete();
     } else {
-        // Não achou, exibe a imagem com filtro de borda pra debug
         cv.imshow('output-canvas', edged);
-        statusMsg.innerText = `Erro: Folha não encontrada. Tente um fundo mais escuro!`;
+        statusMsg.innerText = `Erro: Folha não achada (mostrando bordas detectadas).`;
     }
 
     canvasOutput.style.display = 'block';
     video.style.display = 'none';
 
-    // Limpeza de memória
-    src.delete(); gray.delete(); blurred.delete(); edged.delete();
+    src.delete(); resized.delete(); gray.delete(); blurred.delete(); edged.delete(); kernel.delete();
     contours.delete(); hierarchy.delete();
 });
 
-// Volta para câmera
 canvasOutput.addEventListener('click', () => {
     canvasOutput.style.display = 'none';
     video.style.display = 'block';
