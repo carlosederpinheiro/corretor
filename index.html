@@ -116,6 +116,27 @@
         <div id="touch-area"></div>
     </div>
 
+    
+    <!-- TELA DE REVISÃO -->
+    <div id="review-screen">
+        <div class="scan-ui" style="position:relative; top:10px;">
+            <h2>Ajuste Fino</h2>
+            <p>Arraste os cantos verdes para o centro das 4 âncoras da folha</p>
+        </div>
+        <div id="review-canvas-container">
+            <canvas id="review-canvas"></canvas>
+            <svg id="polygon-svg"><polygon id="crop-polygon" points="0,0 0,0 0,0 0,0" fill="rgba(46,204,113,0.2)" stroke="#2ecc71" stroke-width="2"/></svg>
+            <div class="drag-handle" id="handle-tl"></div>
+            <div class="drag-handle" id="handle-tr"></div>
+            <div class="drag-handle" id="handle-br"></div>
+            <div class="drag-handle" id="handle-bl"></div>
+        </div>
+        <div class="review-controls">
+            <button class="btn-retake" onclick="resetScanner()">Tirar Novamente</button>
+            <button class="btn-confirm" onclick="processWarp()">Corrigir Prova!</button>
+        </div>
+    </div>
+
     <!-- TELA DE RESULTADO -->
     <div id="result-modal">
         <div class="result-title" id="result-exam-name">Nota do Aluno</div>

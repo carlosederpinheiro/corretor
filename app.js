@@ -124,68 +124,38 @@ let handles = [
 let activeHandle = null;
 
 function setupHandles() {
-    let container = document.getElementById('review-canvas-container');
-    let cw = container.clientWidth;
-    let ch = container.clientHeight;
-    
-    // Calcula o tamanho real do canvas na tela (devido ao object-fit: contain)
-    let videoRatio = video.videoWidth / video.videoHeight;
-    let containerRatio = cw / ch;
-    
-    let renderedW, renderedH;
-    if (containerRatio > videoRatio) {
-        renderedH = ch;
-        renderedW = ch * videoRatio;
-    } else {
-        renderedW = cw;
-        renderedH = cw / videoRatio;
+    try {
+        let container = document.getElementById('review-canvas-container');
+        let cw = container.clientWidth || window.innerWidth;
+        let ch = container.clientHeight || (window.innerHeight - 150);
+        
+        let vw = video.videoWidth || 1920;
+        let vh = video.videoHeight || 1080;
+        
+        let videoRatio = vw / vh;
+        let containerRatio = cw / ch;
+        
+        let renderedW, renderedH;
+        if (containerRatio > videoRatio) {
+            renderedH = ch;
+            renderedW = ch * videoRatio;
+        } else {
+            renderedW = cw;
+            renderedH = cw / videoRatio;
+        }
+        
+        let offsetX = (cw - renderedW) / 2;
+        let offsetY = (ch - renderedH) / 2;
+        
+        handles[0].x = offsetX + renderedW * 0.1; handles[0].y = offsetY + renderedH * 0.2;
+        handles[1].x = offsetX + renderedW * 0.9; handles[1].y = offsetY + renderedH * 0.2;
+        handles[2].x = offsetX + renderedW * 0.9; handles[2].y = offsetY + renderedH * 0.8;
+        handles[3].x = offsetX + renderedW * 0.1; handles[3].y = offsetY + renderedH * 0.8;
+        
+        updateHandlesUI();
+    } catch(e) {
+        alert("Erro no setup: " + e.message);
     }
-    
-    let offsetX = (cw - renderedW) / 2;
-    let offsetY = (ch - renderedH) / 2;
-    
-    // Inicia os handles mais ou menos no formato de uma folha paisagem no centro
-    handles[0].x = offsetX + renderedW * 0.1; handles[0].y = offsetY + renderedH * 0.2;
-    handles[1].x = offsetX + renderedW * 0.9; handles[1].y = offsetY + renderedH * 0.2;
-    handles[2].x = offsetX + renderedW * 0.9; handles[2].y = offsetY + renderedH * 0.8;
-    handles[3].x = offsetX + renderedW * 0.1; handles[3].y = offsetY + renderedH * 0.8;
-    
-    updateHandlesUI();
-}
-
-function updateHandlesUI() {
-    let polygon = document.getElementById('crop-polygon');
-    let points = "";
-    
-    for (let h of handles) {
-        let el = document.getElementById(h.id);
-        el.style.left = h.x + 'px';
-        el.style.top = h.y + 'px';
-        points += `${h.x},${h.y} `;
-    }
-    polygon.setAttribute('points', points.trim());
-}
-
-// Lógica de arrastar (Drag & Drop para mobile)
-function handleTouchStart(e) {
-    if (e.target.classList.contains('drag-handle')) {
-        activeHandle = handles.find(h => h.id === e.target.id);
-    }
-}
-function handleTouchMove(e) {
-    if (!activeHandle) return;
-    e.preventDefault();
-    let touch = e.touches ? e.touches[0] : e;
-    let container = document.getElementById('review-canvas-container').getBoundingClientRect();
-    
-    let nx = touch.clientX - container.left;
-    let ny = touch.clientY - container.top;
-    
-    // Limita dentro do container
-    activeHandle.x = Math.max(0, Math.min(nx, container.width));
-    activeHandle.y = Math.max(0, Math.min(ny, container.height));
-    
-    updateHandlesUI();
 }
 function handleTouchEnd() {
     activeHandle = null;
