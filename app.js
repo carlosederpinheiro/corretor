@@ -150,15 +150,15 @@ function processCapture() {
     
     // Os limites exatos de cada coluna no eixo X (em porcentagem da largura total)
     let colBounds = [
-        { start: 0.08, end: 0.22 },
-        { start: 0.27, end: 0.41 },
-        { start: 0.59, end: 0.73 },
-        { start: 0.78, end: 0.92 }
+        { start: 0.076, end: 0.238 },
+        { start: 0.317, end: 0.478 },
+        { start: 0.559, end: 0.720 },
+        { start: 0.800, end: 0.962 }
     ];
     
     // Os limites exatos do bloco de questões no eixo Y (em porcentagem da altura total)
-    let yStartPercent = 0.11;
-    let yEndPercent = 0.89;
+    let yStartPercent = 0.076;
+    let yEndPercent = 0.942;
     let totalGridH = (yEndPercent - yStartPercent) * H;
     let rowH = totalGridH / 15;
     
