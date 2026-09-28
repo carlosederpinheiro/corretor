@@ -144,64 +144,91 @@ function processCapture() {
     let thresh = new cv.Mat();
     cv.threshold(gray, thresh, 0, 255, cv.THRESH_BINARY_INV | cv.THRESH_OTSU);
     
-    // --- LÓGICA GEOMÉTRICA DE CORREÇÃO ---
-    // Como o usuário já alinhou manualmente o grid, sabemos exatamente onde procurar!
-    // A imagem que temos no "thresh" é estritamente o bloco das bolinhas.
+    // --- LÓGICA GEOMÉTRICA DE CORREÇÃO COM DEBUG VISUAL ---
     let W = thresh.cols;
     let H = thresh.rows;
     
-    let colW = W / 4;   // 4 colunas de questões
+    let colW = W / 4;   // 4 colunas
     let rowH = H / 15;  // 15 questões por coluna
-    let optW = colW / 5; // 5 alternativas (A, B, C, D, E) por questão
     
     let options = ['A', 'B', 'C', 'D', 'E'];
     let acertos = 0;
     let gabarito = GABARITOS[currentExam];
     
-    let index = 0; // Vai de 0 a 59
+    let index = 0;
     
     for (let c = 0; c < 4; c++) {
         for (let r = 0; r < 15; r++) {
             
-            // Posição Y da questão
             let y_start = Math.floor(r * rowH);
             let y_end = Math.floor((r + 1) * rowH);
             
-            let maxPixels = 0;
-            let chosenOption = '?';
+            // O início da coluna tem o número (ex: "01"). Vamos pular os primeiros 25% da coluna.
+            let bubblesStartX = Math.floor(c * colW + (colW * 0.25));
+            // O espaço restante é dividido para as 5 alternativas
+            let optW = Math.floor((colW * 0.70) / 5);
             
-            // Analisa as 5 alternativas dessa questão
+            let maxPixels = 0;
+            let chosenOptionIndex = -1;
+            let optionCoords = [];
+            
             for (let o = 0; o < 5; o++) {
-                let x_start = Math.floor(c * colW + o * optW);
-                let x_end = Math.floor(c * colW + (o + 1) * optW);
+                let x_start = bubblesStartX + o * optW;
+                let x_end = bubblesStartX + (o + 1) * optW;
+                optionCoords.push({x1: x_start, x2: x_end, y1: y_start, y2: y_end});
                 
-                // Pega um pequeno quadrado no centro da alternativa
-                let roi = thresh.roi(new cv.Rect(x_start + 2, y_start + 2, (x_end-x_start)-4, (y_end-y_start)-4));
-                
-                // Conta quantos pixels brancos (que eram pretos de caneta) tem ali dentro
+                // Recorta o quadradinho da alternativa
+                let roi = thresh.roi(new cv.Rect(x_start, y_start, x_end-x_start, y_end-y_start));
                 let nonZero = cv.countNonZero(roi);
                 
                 if (nonZero > maxPixels) {
                     maxPixels = nonZero;
-                    chosenOption = options[o];
+                    chosenOptionIndex = o;
                 }
                 roi.delete();
             }
             
-            // Verifica se tem tinta suficiente para não ser só ruído da folha em branco
-            if (maxPixels > 50) { 
-                if (chosenOption === gabarito[index]) {
+            // Verifica se está preenchida
+            if (maxPixels > 40) { 
+                if (options[chosenOptionIndex] === gabarito[index]) {
                     acertos++;
                 }
+            } else {
+                chosenOptionIndex = -1; // Nenhuma marcada
             }
+
+            // --- DESENHO DO DEBUG VISUAL ---
+            for (let o = 0; o < 5; o++) {
+                let color = (o === chosenOptionIndex) ? [0, 255, 0, 255] : [255, 0, 0, 255]; // Verde se marcada, Vermelho se vazia
+                let coords = optionCoords[o];
+                cv.rectangle(src, new cv.Point(coords.x1, coords.y1), new cv.Point(coords.x2, coords.y2), color, 1);
+            }
+            
             index++;
         }
     }
     
-    // Mostra o resultado final!
+    // Exibe o desenho de debug no canvas escondido
+    cv.imshow('debug-canvas', src);
+    
     document.getElementById('result-exam-name').innerText = `Nota do Aluno (${currentExam})`;
     document.getElementById('final-score').innerText = acertos;
     document.getElementById('result-modal').style.display = 'flex';
     
     src.delete(); gray.delete(); thresh.delete();
+}
+
+// Funções para gerenciar o modo de Debug Visual
+function showDebugCanvas() {
+    document.getElementById('result-modal').style.display = 'none';
+    document.getElementById('debug-canvas').style.display = 'block';
+    
+    // Tocar no debug canvas faz ele sumir e voltar pra câmera
+    document.getElementById('debug-canvas').onclick = resetScanner;
+}
+
+function resetScanner() {
+    document.getElementById('result-modal').style.display = 'none';
+    document.getElementById('debug-canvas').style.display = 'none';
+    document.getElementById('scan-subinstruction').innerText = "TOQUE NA TELA PARA FOTOGRAFAR";
 }

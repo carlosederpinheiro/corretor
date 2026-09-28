@@ -94,6 +94,7 @@
         <div class="result-title" id="result-exam-name">Nota do Aluno</div>
         <div class="score" id="final-score">--</div>
         <div class="score-total">de 60 questões</div>
+        <button class="btn-next" style="background-color: #2ecc71; margin-bottom: 15px;" onclick="showDebugCanvas()">Ver Correção Visual</button>
         <button class="btn-next" onclick="resetScanner()">Próxima Prova</button>
     </div>
 
@@ -103,8 +104,10 @@
         <p>Baixando os modelos de visão (só na 1ª vez)</p>
     </div>
 
-    <!-- CANVAS OCULTOS PARA PROCESSAMENTO -->
+    <!-- CANVAS OCULTOS PARA PROCESSAMENTO E DEBUG -->
     <canvas id="capture-canvas"></canvas>
+    <canvas id="debug-canvas" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; object-fit:contain; z-index:90; background-color: #000;"></canvas>
+
 
     <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady();"></script>
     <script src="app.js"></script>
