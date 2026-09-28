@@ -96,67 +96,183 @@ function resetScanner() {
 
 // CAPTURA POR TOQUE NA TELA
 document.getElementById('touch-area').addEventListener('click', () => {
-    document.getElementById('scan-subinstruction').innerText = "CORRIGINDO...";
+    // 1. Tira a foto e vai pra tela de revisão
+    document.getElementById('scanner-screen').style.display = 'none';
+    document.getElementById('review-screen').style.display = 'flex';
     
-    // Usamos um pequeno atraso pra dar tempo da UI atualizar antes de travar processando a imagem
-    setTimeout(() => {
-        processCapture();
-    }, 50);
+    // Captura o vídeo em resolução total para o review-canvas
+    let reviewCanvas = document.getElementById('review-canvas');
+    let rCtx = reviewCanvas.getContext('2d');
+    
+    // Define o tamanho real da foto (baseado no vídeo)
+    reviewCanvas.width = video.videoWidth;
+    reviewCanvas.height = video.videoHeight;
+    rCtx.drawImage(video, 0, 0, reviewCanvas.width, reviewCanvas.height);
+    
+    // Posiciona as âncoras inicialmente no local do 'cutout'
+    // Como a tela de revisão redimensiona o canvas com object-fit: contain, 
+    // precisamos calcular as posições relativas.
+    setupHandles();
 });
 
-function processCapture() {
-    // Igualar o canvas ao tamanho exato da tela do celular
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+let handles = [
+    {id: 'handle-tl', x: 0.1, y: 0.1},
+    {id: 'handle-tr', x: 0.9, y: 0.1},
+    {id: 'handle-br', x: 0.9, y: 0.9},
+    {id: 'handle-bl', x: 0.1, y: 0.9}
+];
+let activeHandle = null;
+
+function setupHandles() {
+    let container = document.getElementById('review-canvas-container');
+    let cw = container.clientWidth;
+    let ch = container.clientHeight;
     
-    // Desenhar o vídeo imitando o "object-fit: cover" do CSS
+    // Calcula o tamanho real do canvas na tela (devido ao object-fit: contain)
     let videoRatio = video.videoWidth / video.videoHeight;
-    let screenRatio = canvas.width / canvas.height;
+    let containerRatio = cw / ch;
     
-    let drawW, drawH, drawX, drawY;
-    if (screenRatio > videoRatio) {
-        drawW = canvas.width;
-        drawH = canvas.width / videoRatio;
-        drawX = 0;
-        drawY = (canvas.height - drawH) / 2;
+    let renderedW, renderedH;
+    if (containerRatio > videoRatio) {
+        renderedH = ch;
+        renderedW = ch * videoRatio;
     } else {
-        drawH = canvas.height;
-        drawW = canvas.height * videoRatio;
-        drawX = (canvas.width - drawW) / 2;
-        drawY = 0;
+        renderedW = cw;
+        renderedH = cw / videoRatio;
     }
     
-    ctx.drawImage(video, drawX, drawY, drawW, drawH);
+    let offsetX = (cw - renderedW) / 2;
+    let offsetY = (ch - renderedH) / 2;
     
-    // Agora pegamos só a parte da imagem que está DENTRO do recorte das âncoras!
-    let cutout = document.getElementById('cutout');
-    let rect = cutout.getBoundingClientRect();
+    // Inicia os handles mais ou menos no formato de uma folha paisagem no centro
+    handles[0].x = offsetX + renderedW * 0.1; handles[0].y = offsetY + renderedH * 0.2;
+    handles[1].x = offsetX + renderedW * 0.9; handles[1].y = offsetY + renderedH * 0.2;
+    handles[2].x = offsetX + renderedW * 0.9; handles[2].y = offsetY + renderedH * 0.8;
+    handles[3].x = offsetX + renderedW * 0.1; handles[3].y = offsetY + renderedH * 0.8;
     
-    // Pega os pixels puros do recorte
-    let imageData = ctx.getImageData(rect.left, rect.top, rect.width, rect.height);
+    updateHandlesUI();
+}
+
+function updateHandlesUI() {
+    let polygon = document.getElementById('crop-polygon');
+    let points = "";
     
-    // Manda pro OpenCV processar
-    let src = cv.matFromImageData(imageData);
+    for (let h of handles) {
+        let el = document.getElementById(h.id);
+        el.style.left = h.x + 'px';
+        el.style.top = h.y + 'px';
+        points += `${h.x},${h.y} `;
+    }
+    polygon.setAttribute('points', points.trim());
+}
+
+// Lógica de arrastar (Drag & Drop para mobile)
+function handleTouchStart(e) {
+    if (e.target.classList.contains('drag-handle')) {
+        activeHandle = handles.find(h => h.id === e.target.id);
+    }
+}
+function handleTouchMove(e) {
+    if (!activeHandle) return;
+    e.preventDefault();
+    let touch = e.touches ? e.touches[0] : e;
+    let container = document.getElementById('review-canvas-container').getBoundingClientRect();
+    
+    let nx = touch.clientX - container.left;
+    let ny = touch.clientY - container.top;
+    
+    // Limita dentro do container
+    activeHandle.x = Math.max(0, Math.min(nx, container.width));
+    activeHandle.y = Math.max(0, Math.min(ny, container.height));
+    
+    updateHandlesUI();
+}
+function handleTouchEnd() {
+    activeHandle = null;
+}
+
+let container = document.getElementById('review-canvas-container');
+container.addEventListener('touchstart', handleTouchStart, {passive: false});
+container.addEventListener('touchmove', handleTouchMove, {passive: false});
+container.addEventListener('touchend', handleTouchEnd);
+container.addEventListener('mousedown', handleTouchStart);
+window.addEventListener('mousemove', handleTouchMove);
+window.addEventListener('mouseup', handleTouchEnd);
+
+function processWarp() {
+    // 1. Pega os pontos do UI e mapeia para a resolução original do vídeo/imagem
+    let reviewCanvas = document.getElementById('review-canvas');
+    let src = cv.imread(reviewCanvas);
+    
+    let container = document.getElementById('review-canvas-container');
+    let cw = container.clientWidth;
+    let ch = container.clientHeight;
+    
+    let videoRatio = src.cols / src.rows;
+    let containerRatio = cw / ch;
+    
+    let renderedW, renderedH;
+    if (containerRatio > videoRatio) {
+        renderedH = ch;
+        renderedW = ch * videoRatio;
+    } else {
+        renderedW = cw;
+        renderedH = cw / videoRatio;
+    }
+    
+    let offsetX = (cw - renderedW) / 2;
+    let offsetY = (ch - renderedH) / 2;
+    
+    // Converte de pixels da tela para pixels da imagem real
+    let pts = [];
+    for (let h of handles) {
+        let realX = ((h.x - offsetX) / renderedW) * src.cols;
+        let realY = ((h.y - offsetY) / renderedH) * src.rows;
+        pts.push({x: realX, y: realY});
+    }
+    
+    // Ordena os pontos garantindo que: 0=TL, 1=TR, 2=BR, 3=BL
+    // O UI já está nessa ordem na array handles, então usamos direto!
+    
+    // --- 2. TRANSFORMAÇÃO DE PERSPECTIVA (WARP) ---
+    // Largura padronizada para a nossa correção
+    let W = 1000;
+    // O DNA matemático provou que a proporção das âncoras é 0.5394
+    let H = Math.round(W * 0.5394);
+    
+    let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
+        pts[0].x, pts[0].y, // TL
+        pts[1].x, pts[1].y, // TR
+        pts[2].x, pts[2].y, // BR
+        pts[3].x, pts[3].y  // BL
+    ]);
+    
+    let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
+        0, 0,
+        W, 0,
+        W, H,
+        0, H
+    ]);
+    
+    let M = cv.getPerspectiveTransform(srcTri, dstTri);
+    let warpedColor = new cv.Mat();
+    let dsize = new cv.Size(W, H);
+    
+    cv.warpPerspective(src, warpedColor, M, dsize, cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
+    
+    // Binariza a imagem desamassada
     let gray = new cv.Mat();
-    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
-    
-    // Binariza: Deixa só o que está preenchido
+    cv.cvtColor(warpedColor, gray, cv.COLOR_RGBA2GRAY, 0);
     let thresh = new cv.Mat();
     cv.threshold(gray, thresh, 0, 255, cv.THRESH_BINARY_INV | cv.THRESH_OTSU);
     
-    // --- LÓGICA GEOMÉTRICA DE CORREÇÃO COM DEBUG VISUAL ---
-    let W = thresh.cols;
-    let H = thresh.rows;
-    
-    // Os limites exatos de cada coluna no eixo X (em porcentagem da largura total)
+    // --- 3. APLICAÇÃO DO DNA MATEMÁTICO NA IMAGEM PERFEITAMENTE PLANA ---
     let colBounds = [
         { start: 0.076, end: 0.238 },
         { start: 0.317, end: 0.478 },
         { start: 0.559, end: 0.720 },
         { start: 0.800, end: 0.962 }
     ];
-    
-    // Os limites exatos do bloco de questões no eixo Y (em porcentagem da altura total)
     let yStartPercent = 0.076;
     let yEndPercent = 0.942;
     let totalGridH = (yEndPercent - yStartPercent) * H;
@@ -174,7 +290,6 @@ function processCapture() {
         let optW = Math.floor(colW / 5);
         
         for (let r = 0; r < 15; r++) {
-            
             let y_start = Math.floor((yStartPercent * H) + (r * rowH));
             let y_end = Math.floor((yStartPercent * H) + ((r + 1) * rowH));
             
@@ -187,8 +302,8 @@ function processCapture() {
                 let x_end = colStartX + (o + 1) * optW;
                 optionCoords.push({x1: x_start, x2: x_end, y1: y_start, y2: y_end});
                 
-                // Recorta o quadradinho da alternativa
-                let roi = thresh.roi(new cv.Rect(x_start, y_start, x_end-x_start, y_end-y_start));
+                // Diminui um pouco o tamanho do retângulo de leitura para evitar pegar a borda da bolinha
+                let roi = thresh.roi(new cv.Rect(x_start + 4, y_start + 4, (x_end-x_start)-8, (y_end-y_start)-8));
                 let nonZero = cv.countNonZero(roi);
                 
                 if (nonZero > maxPixels) {
@@ -198,47 +313,47 @@ function processCapture() {
                 roi.delete();
             }
             
-            // Verifica se está preenchida
-            if (maxPixels > 40) { 
+            if (maxPixels > (optW * 0.15)) { // 15% de preenchimento mínimo
                 if (options[chosenOptionIndex] === gabarito[index]) {
                     acertos++;
                 }
             } else {
-                chosenOptionIndex = -1; // Nenhuma marcada
+                chosenOptionIndex = -1;
             }
 
-            // --- DESENHO DO DEBUG VISUAL ---
             for (let o = 0; o < 5; o++) {
                 let color = (o === chosenOptionIndex) ? [0, 255, 0, 255] : [255, 0, 0, 255]; 
                 let coords = optionCoords[o];
-                cv.rectangle(src, new cv.Point(coords.x1, coords.y1), new cv.Point(coords.x2, coords.y2), color, 2);
+                cv.rectangle(warpedColor, new cv.Point(coords.x1, coords.y1), new cv.Point(coords.x2, coords.y2), color, 2);
             }
-            
             index++;
         }
     }
     
-    // Exibe o desenho de debug no canvas escondido
-    cv.imshow('debug-canvas', src);
+    cv.imshow('debug-canvas', warpedColor);
     
     document.getElementById('result-exam-name').innerText = `Nota do Aluno (${currentExam})`;
     document.getElementById('final-score').innerText = acertos;
     document.getElementById('result-modal').style.display = 'flex';
     
     src.delete(); gray.delete(); thresh.delete();
+    srcTri.delete(); dstTri.delete(); M.delete(); warpedColor.delete();
 }
 
-// Funções para gerenciar o modo de Debug Visual
 function showDebugCanvas() {
     document.getElementById('result-modal').style.display = 'none';
     document.getElementById('debug-canvas').style.display = 'block';
-    
-    // Tocar no debug canvas faz ele sumir e voltar pra câmera
     document.getElementById('debug-canvas').onclick = resetScanner;
 }
 
 function resetScanner() {
     document.getElementById('result-modal').style.display = 'none';
     document.getElementById('debug-canvas').style.display = 'none';
-    document.getElementById('scan-subinstruction').innerText = "ENCAIXE AS BOLINHAS NAS GRADES E TOQUE";
+    document.getElementById('review-screen').style.display = 'none';
+    document.getElementById('scanner-screen').style.display = 'block';
+    
+    // Se o vídeo parou, reinicia
+    if (video.paused) {
+        video.play();
+    }
 }
