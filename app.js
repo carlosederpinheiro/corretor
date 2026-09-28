@@ -1,7 +1,7 @@
 let currentExam = "";
 // URL da API que hospedaremos no Render.com
 // Substitua por algo como "https://seu-app.onrender.com/corrigir/" quando estiver no ar
-const API_URL = "https://corretor-api.onrender.com/corrigir/"; 
+const API_URL = "https://corretor-api-yaa5.onrender.com/corrigir/"; 
 
 const cameraInput = document.getElementById('camera-input');
 
