@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import cv2
 import numpy as np
 import base64
+import fitz  # PyMuPDF
 
 app = FastAPI()
 
@@ -31,11 +32,33 @@ GABARITOS = {
 @app.post("/corrigir/")
 async def corrigir_prova(file: UploadFile = File(...), exam: str = Form(...)):
     contents = await file.read()
-    nparr = np.frombuffer(contents, np.uint8)
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    
+    # 1. Processar PDF ou Imagem
+    if file.filename.lower().endswith('.pdf'):
+        try:
+            # Abre o PDF usando PyMuPDF
+            doc = fitz.open("pdf", contents)
+            page = doc.load_page(0)  # Pega apenas a primeira página
+            # Renderiza a página como imagem (zoom de 2x para boa resolução)
+            pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0))
+            img_np = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
+            
+            # Converte de RGB para BGR para o OpenCV
+            if pix.n == 4:
+                img = cv2.cvtColor(img_np, cv2.COLOR_RGBA2BGR)
+            elif pix.n == 3:
+                img = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
+            else:
+                img = cv2.cvtColor(img_np, cv2.COLOR_GRAY2BGR)
+        except Exception as e:
+            return {"error": f"Falha ao ler o PDF: {str(e)}"}
+    else:
+        # Lógica padrão para imagens (JPG, PNG)
+        nparr = np.frombuffer(contents, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     
     if img is None:
-        return {"error": "Falha ao ler a imagem"}
+        return {"error": "Falha ao processar o arquivo enviado."}
 
     max_dim = 1500
     h, w = img.shape[:2]
@@ -63,19 +86,13 @@ async def corrigir_prova(file: UploadFile = File(...), exam: str = Form(...)):
     if not areas:
         return {"error": "Nenhuma marcação encontrada na imagem."}
         
-    # Como a folha tem 300 bolinhas, a mediana de todas as áreas circulares da folha
-    # será EXATAMENTE o tamanho de uma bolinha!
     median_area = np.median(areas)
     
-    # As âncoras são muito maiores que as bolinhas. 
-    # Filtramos para pegar apenas objetos que são pelo menos 3x maiores que uma bolinha.
-    # Isso ELIMINA completamente o risco do algoritmo achar que uma bolinha é a quina da folha!
     large_candidates = [c for c in candidates if c["area"] > median_area * 3.0]
     
     if len(large_candidates) < 4:
-        return {"error": "Não encontrei as 4 âncoras. Tente afastar o celular e enquadrar a folha toda."}
+        return {"error": "Não encontrei as 4 âncoras. Verifique se o scanner cortou as bordas."}
 
-    # Agora podemos pegar os 4 cantos com segurança!
     tl = min(large_candidates, key=lambda c: c["cx"] + c["cy"])
     br = max(large_candidates, key=lambda c: c["cx"] + c["cy"])
     tr = max(large_candidates, key=lambda c: c["cx"] - c["cy"])
