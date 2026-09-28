@@ -69,34 +69,58 @@ async def corrigir_prova(file: UploadFile = File(...), exam: str = Form(...)):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
 
-    # --- LÓGICA INTELIGENTE DE BUSCA DE ÂNCORAS ---
-    cnts, _ = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    # --- LÓGICA INFALÍVEL DE ÂNCORAS CONCÊNTRICAS (BULLSEYE) ---
+    cnts, hierarchy = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     
-    areas = []
-    candidates = []
-    for c in cnts:
-        area = cv2.contourArea(c)
-        if area > 50:
-            x, y, w_box, h_box = cv2.boundingRect(c)
-            ar = w_box / float(h_box)
-            if 0.5 <= ar <= 1.5:
-                areas.append(area)
-                candidates.append({"cx": x + w_box/2, "cy": y + h_box/2, "area": area})
-                
-    if not areas:
-        return {"error": "Nenhuma marcação encontrada na imagem."}
+    if hierarchy is None:
+        return {"error": "Não foi possível analisar a imagem."}
         
-    median_area = np.median(areas)
+    hierarchy = hierarchy[0]
+    bullseyes = []
     
-    large_candidates = [c for c in candidates if c["area"] > median_area * 3.0]
+    for i, c in enumerate(cnts):
+        child_idx = hierarchy[i][2]
+        if child_idx != -1:
+            grandchild_idx = hierarchy[child_idx][2]
+            if grandchild_idx != -1:
+                area = cv2.contourArea(c)
+                if area > 50: # Remover ruídos minúsculos
+                    x, y, w_box, h_box = cv2.boundingRect(c)
+                    bullseyes.append({"cx": x + w_box/2, "cy": y + h_box/2, "area": area})
+                    
+    # Agrupar os anéis que pertencem à mesma âncora (centros próximos)
+    clusters = []
+    for b in bullseyes:
+        added = False
+        for cl in clusters:
+            if np.hypot(b["cx"] - cl["cx"], b["cy"] - cl["cy"]) < 50:
+                cl["items"].append(b)
+                cl["cx"] = sum(i["cx"] for i in cl["items"]) / len(cl["items"])
+                cl["cy"] = sum(i["cy"] for i in cl["items"]) / len(cl["items"])
+                added = True
+                break
+        if not added:
+            clusters.append({"cx": b["cx"], "cy": b["cy"], "items": [b]})
+            
+    # As âncoras reais são aquelas que têm vários anéis concêntricos
+    valid_anchors = [cl for cl in clusters if len(cl["items"]) >= 2]
     
-    if len(large_candidates) < 4:
-        return {"error": "Não encontrei as 4 âncoras. Verifique se o scanner cortou as bordas."}
-
-    tl = min(large_candidates, key=lambda c: c["cx"] + c["cy"])
-    br = max(large_candidates, key=lambda c: c["cx"] + c["cy"])
-    tr = max(large_candidates, key=lambda c: c["cx"] - c["cy"])
-    bl = min(large_candidates, key=lambda c: c["cx"] - c["cy"])
+    if len(valid_anchors) < 4:
+        # Se por acaso não achar os anéis, fallback para as 4 maiores redondas
+        valid_anchors = clusters
+        valid_anchors.sort(key=lambda c: sum(i["area"] for i in c["items"]), reverse=True)
+        valid_anchors = valid_anchors[:4]
+        
+    if len(valid_anchors) < 4:
+        return {"error": "As 4 âncoras nos cantos não foram detectadas."}
+        
+    # Organizar as 4 âncoras por posição
+    # Se houver mais de 4 grupos válidos (raro), pegar os mais próximos das quinas extremas
+    H_img, W_img = img.shape[:2]
+    tl = min(valid_anchors, key=lambda c: c["cx"] + c["cy"])
+    br = max(valid_anchors, key=lambda c: c["cx"] + c["cy"])
+    tr = max(valid_anchors, key=lambda c: c["cx"] - c["cy"])
+    bl = min(valid_anchors, key=lambda c: c["cx"] - c["cy"])
 
     # 3. Transformação de Perspectiva
     W = 1000
