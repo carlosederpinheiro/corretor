@@ -49,6 +49,7 @@
         }
     </style>
 
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
 </head>
 <body>
 
@@ -82,6 +83,22 @@
             <button class="btn-submit" id="btn-submit" disabled>Corrigir Prova</button>
         </div>
         
+        
+        <!-- ÁREA DE RECORTE (CROP) -->
+        <div class="crop-section" id="crop-section" style="display: none; width: 100%; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); flex-direction: column; align-items: center;">
+            <h2 style="margin-bottom: 5px;">Recorte a Prova</h2>
+            <p style="margin-bottom: 20px; color: #7f8c8d; text-align: center;">Ajuste as bordas para deixar apenas a folha visível (não corte as 4 âncoras!).</p>
+            
+            <div style="width: 100%; max-width: 600px; height: 50vh; background: #ecf0f1; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+                <img id="image-to-crop" style="max-width: 100%; max-height: 100%;">
+            </div>
+            
+            <div style="display: flex; gap: 15px; margin-top: 25px; width: 100%; max-width: 600px;">
+                <button class="btn-submit" id="btn-cancel-crop" style="background-color: #e74c3c; margin-top: 0;">Cancelar</button>
+                <button class="btn-submit" id="btn-confirm-crop" style="margin-top: 0;">Cortar e Corrigir</button>
+            </div>
+        </div>
+
         <!-- ÁREA DE RESULTADO -->
         <div class="result-section" id="result-section">
             <div class="score-box">
@@ -102,79 +119,107 @@
     </div>
 
     <script>
+
         const API_URL = "https://corretor-api-yaa5.onrender.com/corrigir/"; 
         
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('file-input');
-        const fileNameSpan = document.getElementById('file-name');
         const btnSubmit = document.getElementById('btn-submit');
+        
+        const uploadSection = document.querySelector('.upload-section');
+        const cropSection = document.getElementById('crop-section');
+        const resultSection = document.getElementById('result-section');
+        
+        const imageToCrop = document.getElementById('image-to-crop');
+        const btnCancelCrop = document.getElementById('btn-cancel-crop');
+        const btnConfirmCrop = document.getElementById('btn-confirm-crop');
+        
+        let cropper = null;
         let selectedFile = null;
 
-        // Eventos de Drag & Drop
+        // Drag & Drop
         dropZone.addEventListener('click', () => fileInput.click());
-        
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('dragover');
-        });
-        
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
         dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-        
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             dropZone.classList.remove('dragover');
-            if (e.dataTransfer.files.length) {
-                handleFile(e.dataTransfer.files[0]);
-            }
+            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
         });
 
         fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length) {
-                handleFile(e.target.files[0]);
-            }
+            if (e.target.files.length) handleFile(e.target.files[0]);
         });
 
         function handleFile(file) {
             selectedFile = file;
-            fileNameSpan.innerText = file.name;
-            fileNameSpan.style.color = "#2ecc71";
-            fileNameSpan.style.fontWeight = "bold";
-            btnSubmit.disabled = false;
+            
+            // Lê a imagem para colocar no cropper
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                imageToCrop.src = e.target.result;
+                
+                uploadSection.style.display = 'none';
+                resultSection.style.display = 'none';
+                cropSection.style.display = 'flex';
+                
+                if (cropper) {
+                    cropper.destroy();
+                }
+                
+                cropper = new Cropper(imageToCrop, {
+                    viewMode: 1, // Restringe a caixa de corte ao tamanho da imagem
+                    dragMode: 'move', // Permite arrastar a imagem
+                    autoCropArea: 0.95, // Corta quase tudo inicialmente
+                    restore: false,
+                    guides: true,
+                    center: true,
+                    highlight: false,
+                    cropBoxMovable: true,
+                    cropBoxResizable: true,
+                    toggleDragModeOnDblclick: false,
+                });
+            };
+            reader.readAsDataURL(file);
+            
+            // Limpa o input file para permitir selecionar o mesmo arquivo novamente se precisar
+            fileInput.value = "";
         }
 
-        btnSubmit.addEventListener('click', async () => {
-            if (!selectedFile) return;
-            
-            const examSelect = document.getElementById('exam-select').value;
-            
-            document.getElementById('loading-overlay').style.display = 'flex';
-            document.getElementById('result-section').style.display = 'none';
-            
-            let formData = new FormData();
-            formData.append("file", selectedFile);
-            formData.append("exam", examSelect);
-            
-            try {
-                let response = await fetch(API_URL, {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                let data = await response.json();
-                document.getElementById('loading-overlay').style.display = 'none';
-                
-                if (data.error) {
-                    alert("Erro na API: " + data.error);
-                } else {
-                    document.getElementById('final-score').innerText = data.score;
-                    document.getElementById('debug-image').src = data.debug_image;
-                    document.getElementById('result-section').style.display = 'flex';
-                }
-            } catch (err) {
-                document.getElementById('loading-overlay').style.display = 'none';
-                alert("Erro ao conectar com a API no Render: " + err.message);
-            }
+        btnCancelCrop.addEventListener('click', () => {
+            if (cropper) cropper.destroy();
+            cropSection.style.display = 'none';
+            uploadSection.style.display = 'block';
         });
+
+        
+        btnConfirmCrop.addEventListener('click', () => {
+            if (!cropper) return;
+            const canvas = cropper.getCroppedCanvas({ imageSmoothingEnabled: true, imageSmoothingQuality: 'high' });
+            if (!canvas) { alert("Erro ao recortar a imagem."); return; }
+            
+            canvas.toBlob((blob) => {
+                sendToAPI(blob);
+            }, 'image/jpeg', 0.95);
+        });
+
+
+        // Oculta o botão antigo que ficava na tela inicial (já que agora vai direto pro Crop)
+        btnSubmit.style.display = 'none';
+        
+        // Adiciona botão "Corrigir Outra" na tela de resultados
+        const resultHTML = resultSection.innerHTML;
+        if (!resultHTML.includes('Corrigir Outra')) {
+            resultSection.innerHTML += '<button class="btn-submit" onclick="resetApp()" style="margin-top: 30px;">Corrigir Outra</button>';
+        }
+        
+        window.resetApp = function() {
+            resultSection.style.display = 'none';
+            uploadSection.style.display = 'block';
+            if (cropper) { cropper.destroy(); cropper = null; }
+        };
+
     </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 </body>
 </html>
