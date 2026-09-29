@@ -193,16 +193,30 @@
         });
 
         
+        
         btnConfirmCrop.addEventListener('click', () => {
             if (!cropper) return;
-            const canvas = cropper.getCroppedCanvas({ imageSmoothingEnabled: true, imageSmoothingQuality: 'high' });
-            if (!canvas) { alert("Erro ao recortar a imagem."); return; }
-            
-            canvas.toBlob((blob) => {
-                sendToAPI(blob);
-            }, 'image/jpeg', 0.95);
+            try {
+                // iOS Safari crash prevention: Limit max width/height
+                const canvas = cropper.getCroppedCanvas({ 
+                    maxWidth: 1500, 
+                    maxHeight: 1500,
+                    imageSmoothingEnabled: true, 
+                    imageSmoothingQuality: 'high' 
+                });
+                
+                if (!canvas) { 
+                    alert("Erro interno: Navegador não conseguiu gerar a imagem recortada. Tente afastar um pouco o corte."); 
+                    return; 
+                }
+                
+                canvas.toBlob((blob) => {
+                    sendToAPI(blob);
+                }, 'image/jpeg', 0.95);
+            } catch (err) {
+                alert("Erro catastrófico no recorte: " + err.message);
+            }
         });
-
 
         // Oculta o botão antigo que ficava na tela inicial (já que agora vai direto pro Crop)
         btnSubmit.style.display = 'none';
