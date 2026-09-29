@@ -151,10 +151,17 @@
             if (e.target.files.length) handleFile(e.target.files[0]);
         });
 
+        
         function handleFile(file) {
             selectedFile = file;
             
-            // Lê a imagem para colocar no cropper
+            if (file.type === "application/pdf") {
+                if (confirm("O arquivo é um PDF. Deseja enviá-lo diretamente para correção?")) {
+                    sendToAPI(file);
+                }
+                fileInput.value = "";
+                return;
+            }
             const reader = new FileReader();
             reader.onload = (e) => {
                 imageToCrop.src = e.target.result;
@@ -227,6 +234,42 @@
             resultSection.innerHTML += '<button class="btn-submit" onclick="resetApp()" style="margin-top: 30px;">Corrigir Outra</button>';
         }
         
+        
+        async function sendToAPI(fileOrBlob) {
+            const examSelect = document.getElementById('exam-select').value;
+            
+            document.getElementById('loading-overlay').style.display = 'flex';
+            uploadSection.style.display = 'none';
+            cropSection.style.display = 'none';
+            
+            let formData = new FormData();
+            formData.append("file", fileOrBlob, fileOrBlob.name || "recorte.jpg");
+            formData.append("exam", examSelect);
+            
+            try {
+                let response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                let data = await response.json();
+                document.getElementById('loading-overlay').style.display = 'none';
+                
+                if (data.error) {
+                    alert("Erro na API: " + data.error);
+                    uploadSection.style.display = 'block';
+                } else {
+                    document.getElementById('final-score').innerText = data.score;
+                    document.getElementById('debug-image').src = data.debug_image;
+                    resultSection.style.display = 'flex';
+                }
+            } catch (err) {
+                document.getElementById('loading-overlay').style.display = 'none';
+                alert("Erro ao conectar com a API: " + err.message);
+                uploadSection.style.display = 'block';
+            }
+        }
+
         window.resetApp = function() {
             resultSection.style.display = 'none';
             uploadSection.style.display = 'block';
