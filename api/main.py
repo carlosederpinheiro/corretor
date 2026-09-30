@@ -122,6 +122,20 @@ async def corrigir_prova(file: UploadFile = File(...), exam: str = Form(...)):
         valid_anchors.sort(key=lambda c: sum(i["area"] for i in c["items"]), reverse=True)
         valid_anchors = valid_anchors[:4]
         
+    if len(valid_anchors) > 4:
+        H_img, W_img = img.shape[:2]
+        corners = [(0,0), (W_img,0), (W_img,H_img), (0,H_img)]
+        best_anchors = []
+        for corner in corners:
+            best_a = min(valid_anchors, key=lambda c: (c["cx"] - corner[0])**2 + (c["cy"] - corner[1])**2)
+            if best_a not in best_anchors:
+                best_anchors.append(best_a)
+        if len(best_anchors) == 4:
+            valid_anchors = best_anchors
+        else:
+            valid_anchors.sort(key=lambda c: sum(i["area"] for i in c["items"]), reverse=True)
+            valid_anchors = valid_anchors[:4]
+            
     if len(valid_anchors) < 4:
         return {"error": "As 4 âncoras nos cantos não foram detectadas."}
         
