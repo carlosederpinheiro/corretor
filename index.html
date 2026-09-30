@@ -261,6 +261,7 @@
                     uploadSection.style.display = 'block';
                 } else {
                     document.getElementById('final-score').innerText = data.score;
+                    document.getElementById('max-score').innerText = examSelect === 'MACRO ESPECÍFICA' ? 'de 84 questões' : 'de 60 questões';
                     document.getElementById('debug-image').src = data.debug_image;
                     resultSection.style.display = 'flex';
                 }
