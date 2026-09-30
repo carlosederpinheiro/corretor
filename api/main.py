@@ -161,15 +161,16 @@ async def corrigir_prova(file: UploadFile = File(...), exam: str = Form(...)):
     # 4. Configurar o DNA Matemático dependendo da prova
     if exam == "MACRO ESPECÍFICA":
         # 3 colunas de 30 questões (gabartio tem 84, o resto é ignorado)
+        # Ajuste fino milimétrico para compensar a distorção de lente (barrel distortion) das fotos
         colBounds = [
-            {"start": 0.140, "end": 0.300},
-            {"start": 0.415, "end": 0.585},
-            {"start": 0.680, "end": 0.855}
+            {"start": 0.125, "end": 0.285},
+            {"start": 0.400, "end": 0.575},
+            {"start": 0.665, "end": 0.845}
         ]
         num_cols = 3
         num_rows = 30
         yStartPercent = 0.0651
-        rowH = 0.03056 * H
+        rowH = 0.0312 * H
     else:
         # SIS 2 e SIS 3 (4 colunas de 15 questões)
         colBounds = [
