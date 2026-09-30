@@ -15,6 +15,7 @@ app.add_middleware(
 )
 
 GABARITOS = {
+        "MACRO ESPECÍFICA": ["A"] * 84,
     "SIS 2": [
         "B", "D", "B", "C", "C", "B", "D", "A", "B", "E", "C", "D", "A", "D", "A",
         "C", "A", "D", "C", "D", "A", "C", "A", "E", "D", "E", "D", "A", "A", "B",
@@ -124,8 +125,11 @@ async def corrigir_prova(file: UploadFile = File(...), exam: str = Form(...)):
 
     # 3. Transformação de Perspectiva
     W = 1000
-    H = int(W * 0.5394)
-    
+    if exam == "MACRO ESPECÍFICA":
+        H = int(W * 0.7976)
+    else:
+        H = int(W * 0.5394)
+        
     src_pts = np.array([
         [tl["cx"], tl["cy"]],
         [tr["cx"], tr["cy"]],
@@ -146,30 +150,65 @@ async def corrigir_prova(file: UploadFile = File(...), exam: str = Form(...)):
     warped_gray = cv2.cvtColor(warped_color, cv2.COLOR_BGR2GRAY)
     warped_thresh = cv2.threshold(warped_gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
 
-    # 4. Aplicar o DNA Matemático
-    colBounds = [
-        {"start": 0.076, "end": 0.238},
-        {"start": 0.317, "end": 0.478},
-        {"start": 0.559, "end": 0.720},
-        {"start": 0.800, "end": 0.962}
-    ]
-    yStartPercent = 0.076
-    yEndPercent = 0.942
-    totalGridH = (yEndPercent - yStartPercent) * H
-    rowH = totalGridH / 15.0
+    # 4. Configurar o DNA Matemático dependendo da prova
+    if exam == "MACRO ESPECÍFICA":
+        # 3 colunas de 28 questões
+        colBounds = [
+            {"start": 0.125, "end": 0.275},
+            {"start": 0.435, "end": 0.595},
+            {"start": 0.765, "end": 0.925}
+        ]
+        num_cols = 3
+        num_rows = 28
+        yStartPercent = 0.035
+        # O espaçamento entre as bolinhas é de ~0.0395 da altura do quadro âncora
+        rowH = 0.0396 * H
+    else:
+        # SIS 2 e SIS 3 (4 colunas de 15 questões)
+        colBounds = [
+            {"start": 0.076, "end": 0.238},
+            {"start": 0.317, "end": 0.478},
+            {"start": 0.559, "end": 0.720},
+            {"start": 0.800, "end": 0.962}
+        ]
+        num_cols = 4
+        num_rows = 15
+        yStartPercent = 0.076
+        yEndPercent = 0.942
+        totalGridH = (yEndPercent - yStartPercent) * H
+        rowH = totalGridH / 15.0
+
+    # Aumentar a área do canvas warped se o grid for maior que as âncoras (Macro específica vai até 1.15)
+    canvas_H = H
+    if exam == "MACRO ESPECÍFICA":
+        canvas_H = int(H * 1.20)
+        # Refazer o warp com canvas maior para caber as questões que passam das âncoras
+        dst_pts_macro = np.array([
+            [0, 0],
+            [W, 0],
+            [W, H],
+            [0, H]
+        ], dtype="float32")
+        M_macro = cv2.getPerspectiveTransform(src_pts, dst_pts_macro)
+        warped_color = cv2.warpPerspective(img, M_macro, (W, canvas_H))
+        warped_gray = cv2.cvtColor(warped_color, cv2.COLOR_BGR2GRAY)
+        warped_thresh = cv2.threshold(warped_gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
 
     options = ['A', 'B', 'C', 'D', 'E']
     acertos = 0
     gabarito = GABARITOS.get(exam, GABARITOS["SIS 2"])
     index = 0
 
-    for c in range(4):
+    for c in range(num_cols):
         bounds = colBounds[c]
         colStartX = int(bounds["start"] * W)
         colW = int((bounds["end"] - bounds["start"]) * W)
         optW = int(colW / 5)
         
-        for r in range(15):
+        for r in range(num_rows):
+            if index >= len(gabarito):
+                break
+                
             y_start = int((yStartPercent * H) + (r * rowH))
             y_end = int((yStartPercent * H) + ((r + 1) * rowH))
             
