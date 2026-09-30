@@ -204,6 +204,7 @@ async def corrigir_prova(file: UploadFile = File(...), exam: str = Form(...)):
         warped_color = cv2.warpPerspective(img, M_macro, (canvas_W, canvas_H))
         
     warped_gray = cv2.cvtColor(warped_color, cv2.COLOR_BGR2GRAY)
+    warped_thresh = cv2.threshold(warped_gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
 
     options = ['A', 'B', 'C', 'D', 'E']
     acertos = 0
