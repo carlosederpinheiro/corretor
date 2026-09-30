@@ -136,7 +136,7 @@ async def corrigir_prova(file: UploadFile = File(...), exam: str = Form(...)):
     # 3. Transformação de Perspectiva
     W = 1000
     if exam == "MACRO ESPECÍFICA":
-        H = int(W * 0.7976)
+        H = int(W * 1.3672)
     else:
         H = int(W * 0.5394)
         
@@ -155,24 +155,21 @@ async def corrigir_prova(file: UploadFile = File(...), exam: str = Form(...)):
     ], dtype="float32")
     
     M = cv2.getPerspectiveTransform(src_pts, dst_pts)
-    warped_color = cv2.warpPerspective(img, M, (W, H))
     
-    warped_gray = cv2.cvtColor(warped_color, cv2.COLOR_BGR2GRAY)
-    warped_thresh = cv2.threshold(warped_gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
 
     # 4. Configurar o DNA Matemático dependendo da prova
     if exam == "MACRO ESPECÍFICA":
-        # 3 colunas de 28 questões
+        # 3 colunas de 30 questões (gabartio tem 84, o resto é ignorado)
         colBounds = [
-            {"start": 0.125, "end": 0.275},
-            {"start": 0.435, "end": 0.595},
-            {"start": 0.765, "end": 0.925}
+            {"start": 0.185, "end": 0.395},
+            {"start": 0.545, "end": 0.765},
+            {"start": 0.900, "end": 1.125}
         ]
         num_cols = 3
-        num_rows = 28
-        yStartPercent = 0.035
-        # O espaçamento entre as bolinhas é de ~0.0395 da altura do quadro âncora
-        rowH = 0.0396 * H
+        num_rows = 30
+        yStartPercent = 0.0654
+        # O espaçamento médio entre as bolinhas é de ~0.0306 da altura
+        rowH = 0.0306 * H
     else:
         # SIS 2 e SIS 3 (4 colunas de 15 questões)
         colBounds = [
@@ -188,11 +185,15 @@ async def corrigir_prova(file: UploadFile = File(...), exam: str = Form(...)):
         totalGridH = (yEndPercent - yStartPercent) * H
         rowH = totalGridH / 15.0
 
-    # Aumentar a área do canvas warped se o grid for maior que as âncoras (Macro específica vai até 1.15)
+    # Aumentar a área do canvas warped se o grid for maior que as âncoras 
+    # Macro específica tem a coluna 3 que vaza pela direita (rx até 1.125)
     canvas_H = H
+    canvas_W = W
+    warped_color = cv2.warpPerspective(img, M, (canvas_W, canvas_H))
+    
     if exam == "MACRO ESPECÍFICA":
-        canvas_H = int(H * 1.20)
-        # Refazer o warp com canvas maior para caber as questões que passam das âncoras
+        canvas_W = int(W * 1.20)
+        # Refazer o warp com canvas mais largo
         dst_pts_macro = np.array([
             [0, 0],
             [W, 0],
@@ -200,9 +201,9 @@ async def corrigir_prova(file: UploadFile = File(...), exam: str = Form(...)):
             [0, H]
         ], dtype="float32")
         M_macro = cv2.getPerspectiveTransform(src_pts, dst_pts_macro)
-        warped_color = cv2.warpPerspective(img, M_macro, (W, canvas_H))
-        warped_gray = cv2.cvtColor(warped_color, cv2.COLOR_BGR2GRAY)
-        warped_thresh = cv2.threshold(warped_gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
+        warped_color = cv2.warpPerspective(img, M_macro, (canvas_W, canvas_H))
+        
+    warped_gray = cv2.cvtColor(warped_color, cv2.COLOR_BGR2GRAY)
 
     options = ['A', 'B', 'C', 'D', 'E']
     acertos = 0
