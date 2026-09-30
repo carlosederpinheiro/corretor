@@ -114,27 +114,14 @@ async def corrigir_prova(file: UploadFile = File(...), exam: str = Form(...)):
             clusters.append({"cx": b["cx"], "cy": b["cy"], "items": [b]})
             
     # As âncoras reais são aquelas que têm vários anéis concêntricos
-    valid_anchors = [cl for cl in clusters if len(cl["items"]) >= 2]
+    # APENAS âncoras com 3 ou mais anéis (ignora logos e falsos positivos de 2 anéis)
+    valid_anchors = [cl for cl in clusters if len(cl["items"]) >= 3]
     
     if len(valid_anchors) < 4:
-        # Se por acaso não achar os anéis, fallback para as 4 maiores redondas
+        # Fallback se não detectar os 3 anéis perfeitos
         valid_anchors = clusters
         valid_anchors.sort(key=lambda c: sum(i["area"] for i in c["items"]), reverse=True)
         valid_anchors = valid_anchors[:4]
-        
-    if len(valid_anchors) > 4:
-        H_img, W_img = img.shape[:2]
-        corners = [(0,0), (W_img,0), (W_img,H_img), (0,H_img)]
-        best_anchors = []
-        for corner in corners:
-            best_a = min(valid_anchors, key=lambda c: (c["cx"] - corner[0])**2 + (c["cy"] - corner[1])**2)
-            if best_a not in best_anchors:
-                best_anchors.append(best_a)
-        if len(best_anchors) == 4:
-            valid_anchors = best_anchors
-        else:
-            valid_anchors.sort(key=lambda c: sum(i["area"] for i in c["items"]), reverse=True)
-            valid_anchors = valid_anchors[:4]
             
     if len(valid_anchors) < 4:
         return {"error": "As 4 âncoras nos cantos não foram detectadas."}
@@ -150,7 +137,7 @@ async def corrigir_prova(file: UploadFile = File(...), exam: str = Form(...)):
     # 3. Transformação de Perspectiva
     W = 1000
     if exam == "MACRO ESPECÍFICA":
-        H = int(W * 1.3672)
+        H = int(W * 1.0381)
     else:
         H = int(W * 0.5394)
         
@@ -175,15 +162,14 @@ async def corrigir_prova(file: UploadFile = File(...), exam: str = Form(...)):
     if exam == "MACRO ESPECÍFICA":
         # 3 colunas de 30 questões (gabartio tem 84, o resto é ignorado)
         colBounds = [
-            {"start": 0.185, "end": 0.395},
-            {"start": 0.545, "end": 0.765},
-            {"start": 0.900, "end": 1.125}
+            {"start": 0.140, "end": 0.300},
+            {"start": 0.415, "end": 0.585},
+            {"start": 0.680, "end": 0.855}
         ]
         num_cols = 3
         num_rows = 30
-        yStartPercent = 0.0654
-        # O espaçamento médio entre as bolinhas é de ~0.0306 da altura
-        rowH = 0.0306 * H
+        yStartPercent = 0.0651
+        rowH = 0.03056 * H
     else:
         # SIS 2 e SIS 3 (4 colunas de 15 questões)
         colBounds = [
@@ -199,24 +185,7 @@ async def corrigir_prova(file: UploadFile = File(...), exam: str = Form(...)):
         totalGridH = (yEndPercent - yStartPercent) * H
         rowH = totalGridH / 15.0
 
-    # Aumentar a área do canvas warped se o grid for maior que as âncoras 
-    # Macro específica tem a coluna 3 que vaza pela direita (rx até 1.125)
-    canvas_H = H
-    canvas_W = W
-    warped_color = cv2.warpPerspective(img, M, (canvas_W, canvas_H))
-    
-    if exam == "MACRO ESPECÍFICA":
-        canvas_W = int(W * 1.20)
-        # Refazer o warp com canvas mais largo
-        dst_pts_macro = np.array([
-            [0, 0],
-            [W, 0],
-            [W, H],
-            [0, H]
-        ], dtype="float32")
-        M_macro = cv2.getPerspectiveTransform(src_pts, dst_pts_macro)
-        warped_color = cv2.warpPerspective(img, M_macro, (canvas_W, canvas_H))
-        
+    warped_color = cv2.warpPerspective(img, M, (W, H))
     warped_gray = cv2.cvtColor(warped_color, cv2.COLOR_BGR2GRAY)
     warped_thresh = cv2.threshold(warped_gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
 
