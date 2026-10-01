@@ -15,28 +15,23 @@ app.add_middleware(
 )
 
 GABARITOS = {
-        "MACRO ESPECÍFICA": [
-        "A", "C", "D", "E", "E", "C", "C", "A", "C", "D", 
-        "E", "D", "A", "E", "C", "D", "C", "B", "E", "D", 
-        "E", "C", "B", "C", "B", "E", "A", "C", "B", "C", 
-        "B", "D", "B", "A", "E", "C", "A", "C", "B", "A", 
-        "A", "C", "C", "B", "E", "C", "B", "A", "E", "C", 
-        "E", "E", "A", "E", "B", "C", "B", "E", "B", "C", 
-        "C", "D", "C", "B", "E", "A", "A", "E", "D", "E", 
-        "A", "A", "B", "C", "A", "C", "D", "B", "E", "A", 
-        "B", "D", "E", "D"
+    "UEA_HUMANAS": [
+        'D', 'A', 'B', 'E', 'A', 'C', 'D', 'B', 'E', 'A', 
+        'B', 'C', 'A', 'E', 'D', 'A', 'B', 'B', 'C', 'D', 
+        'B', 'A', 'E', 'C', 'D', 'D', 'D', 'A', 'B', 'D', 
+        'E', 'E', 'A', 'B', 'E', 'D'
     ],
-    "SIS 2": [
-        "B", "D", "B", "C", "C", "B", "D", "A", "B", "E", "C", "D", "A", "D", "A",
-        "C", "A", "D", "C", "D", "A", "C", "A", "E", "D", "E", "D", "A", "A", "B",
-        "D", "B", "A", "B", "A", "A", "A", "A", "C", "E", "A", "D", "E", "C", "E",
-        "E", "B", "C", "A", "E", "C", "C", "C", "E", "C", "C", "C", "E", "B", "E"
+    "UEA_BIOLÓGICAS": [
+        'B', 'D', 'E', 'E', 'E', 'E', 'C', 'A', 'E', 'A', 
+        'D', 'B', 'C', 'C', 'D', 'D', 'D', 'D', 'B', 'C', 
+        'C', 'B', 'D', 'C', 'E', 'D', 'D', 'D', 'A', 'B', 
+        'D', 'E', 'E', 'A', 'B', 'E', 'D'
     ],
-    "SIS 3": [
-        "B", "A", "D", "B", "E", "A", "E", "D", "C", "B", "D", "A", "A", "B", "C",
-        "C", "A", "E", "A", "E", "D", "A", "D", "A", "A", "A", "C", "E", "B", "C",
-        "A", "D", "B", "D", "E", "A", "E", "C", "A", "B", "E", "A", "B", "E", "C",
-        "E", "D", "A", "C", "D", "C", "A", "B", "D", "E", "E", "C", "B", "D", "C"
+    "UEA_EXATAS": [
+        'C', 'D', 'B', 'A', 'C', 'D', 'C', 'E', 'D', 'C', 
+        'A', 'D', 'E', 'D', 'B', 'E', 'B', 'A', 'C', 'D', 
+        'D', 'D', 'B', 'D', 'D', 'D', 'D', 'A', 'B', 'D', 
+        'E', 'E', 'A', 'B', 'E', 'D'
     ]
 }
 
@@ -380,7 +375,7 @@ async def corrigir_prova(file: UploadFile = File(...), exam: str = Form(...)):
 
     options = ['A', 'B', 'C', 'D', 'E']
     acertos = 0
-    gabarito = GABARITOS.get(exam, GABARITOS["SIS 2"])
+    gabarito = GABARITOS.get(exam, GABARITOS["UEA_HUMANAS"])
     
     if exam == "MACRO ESPECÍFICA":
         for index in range(min(len(gabarito), len(EXACT_GRID_90))):
