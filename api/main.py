@@ -15,6 +15,17 @@ app.add_middleware(
 )
 
 GABARITOS = {
+    "MACRO ESPECÍFICA": [
+        'A', 'C', 'D', 'E', 'E', 'C', 'C', 'A', 'C', 'D',
+        'E', 'D', 'A', 'E', 'C', 'D', 'C', 'B', 'E', 'D',
+        'E', 'C', 'B', 'C', 'B', 'E', 'A', 'C', 'B', 'C',
+        'B', 'D', 'B', 'A', 'E', 'C', 'A', 'C', 'B', 'A',
+        'A', 'C', 'C', 'B', 'E', 'C', 'B', 'A', 'E', 'C',
+        'E', 'E', 'A', 'E', 'B', 'C', 'B', 'E', 'B', 'C',
+        'C', 'D', 'C', 'B', 'E', 'A', 'A', 'E', 'D', 'E',
+        'A', 'A', 'B', 'C', 'A', 'C', 'D', 'B', 'E', 'A',
+        'B', 'D', 'E', 'D'
+    ],
     "UEA_HUMANAS": [
         'D', 'A', 'B', 'E', 'A', 'C', 'D', 'B', 'E', 'A', 
         'B', 'C', 'A', 'E', 'D', 'A', 'B', 'B', 'C', 'D', 
